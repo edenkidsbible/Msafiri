@@ -1,9 +1,17 @@
 ---
-name: Session-based trial architecture (full funnel)
-description: Complete trial funnel: quality gate, in-drive badge, TripSummaryModal banner, PaywallModal copy, post-trial push nudge sequence.
+name: Hybrid store and drive-count trial
+description: The subscription trial combines a store-controlled three-day window with a maximum of three qualifying drives.
 ---
 
-## Quality gate for trial drives
+## Core rule
+
+Premium access requires starting the App Store or Google Play subscription. Its introductory offer is a three-day free trial, and that active trial includes at most three qualifying drives. Non-subscribers do not receive separate free-drive access.
+
+**Why:** The timed trial creates a clear subscription conversion path, while the drive cap prevents unlimited usage during the free period and guarantees each consumed session reflects meaningful product use.
+
+**How to apply:** Use RevenueCat/store metadata as the source of truth for trial eligibility and duration. Apply the drive-count restriction only while the entitlement period type is `TRIAL`; once it renews as paid, driving is unlimited.
+
+## Quality gate for included trial drives
 
 A drive counts toward the 3-session free trial only if:
 - Wall-clock duration ≥ 5 minutes, OR
@@ -15,12 +23,12 @@ Gate applied at two points in drive.tsx:
 
 The 50 m minimum for saving a server session is separate and unchanged.
 
-## In-drive "Free Drive X of 3" pill
+## In-drive "Trial Drive X of 3" pill
 
 Absolutely positioned at `top: topInset + 8`, centered horizontally. Only shown when:
-- `tripActive && !isSubscribed && !trialExpired && primaryAlert == null && !isOffline && Platform.OS !== "web"`
+- `tripActive && isOnTrial && !trialExpired && primaryAlert == null && !isOffline && Platform.OS !== "web"`
 
-Text: `Free Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}`
+Text: `Trial Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}`
 - `sessionsUsed` from `useTrialSessions()`, also held in `sessionsUsedRef` for closure stability in `captureAndStop`
 
 ## TripSummaryModal trial banner
@@ -32,15 +40,9 @@ Text: `Free Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}`
 
 Banner appears between header and score section.
 
-## PaywallModal copy cleanup
+## Paywall trial language
 
-Removed all "3-day free trial" language (Apple guideline: don't describe app-controlled sessions as Apple free trials):
-- Badge: unified to "Cancel anytime — no long-term commitment" (was split on `trialEligible`)
-- Legal text: always "You'll be charged..." (removed the 3-day trial preamble)
-- Checkbox: "By starting my subscription" (removed trialEligible branch)
-- CTA button: always "Subscribe Now" (was "Start 3-Day Free Trial" for eligible)
-
-`trialEligible` is still computed but no longer drives copy changes — retained for future intro-price display if store pricing is configured.
+Show “3-day free trial,” “No charge today,” and the trial CTA only when RevenueCat returns a zero-price introductory offer and the store confirms eligibility. Always disclose the three-drive maximum and regular renewal price. Ineligible users see normal subscription copy.
 
 ## Post-trial push nudge sequence (server-side)
 

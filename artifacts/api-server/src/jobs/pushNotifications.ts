@@ -504,8 +504,9 @@ const RECOVERY_PHONE_NUDGE_MESSAGES = [
 ];
 
 // ─── Post-trial nudge sequence ────────────────────────────────────────────────
-// After a device's free trial expires, send up to 3 re-engagement pushes:
-//   Stage 0 → 1 : ~30–120 min after expiry  ("Your free drives are complete")
+// After a device uses the three drives included in its store trial, send up to
+// 3 reminders that stay accurate whether the trial later renews or is cancelled:
+//   Stage 0 → 1 : ~30–120 min after limit  ("Your trial drives are complete")
 //   Stage 1 → 2 : ~20–30 hours after expiry ("Driving today?")
 //   Stage 2 → 3 : ~2–5 days after expiry    ("Your Msafiri offer is still waiting")
 // Runs on every 30-min tick; nudge_stage gates against double-sending.
@@ -513,18 +514,18 @@ const RECOVERY_PHONE_NUDGE_MESSAGES = [
 const TRIAL_NUDGE_STAGES: Record<number, { minS: number; maxS: number; title: string; body: string }> = {
   0: {
     minS:  30 * 60, maxS: 120 * 60,
-    title: "Your free drives are complete 🎉",
-    body:  "Keep Msafiri with you on every journey. Unlock your first month at our introductory price.",
+    title: "Your trial drives are complete 🎉",
+    body:  "You've used the 3 drives included in your free trial. Unlimited driving begins when the paid period starts.",
   },
   1: {
     minS: 20 * 3600, maxS: 30 * 3600,
     title: "Driving today?",
-    body:  "Your 3 free Msafiri drives are complete. Subscribe to keep speed-camera alerts, Dashcam and road intelligence active.",
+    body:  "Your trial subscription is still active. Unlimited driving begins after the free period renews as a paid plan.",
   },
   2: {
     minS: 2 * 86400, maxS: 5 * 86400,
-    title: "Your Msafiri offer is still waiting",
-    body:  "Get your first month at the introductory price and keep every drive protected.",
+    title: "Keep every drive protected",
+    body:  "Open Msafiri to check your subscription and continue with speed-camera alerts, Dashcam and road intelligence.",
   },
 };
 

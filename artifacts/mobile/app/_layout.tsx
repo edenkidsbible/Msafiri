@@ -71,7 +71,6 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
 import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
-import { useTrialSessions } from "@/hooks/useTrialSessions";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { defineShareBackgroundTask } from "@/utils/backgroundShare";
 import { defineBackgroundNotificationTask } from "@/utils/backgroundNotificationTask";
@@ -261,15 +260,7 @@ function RootLayoutNav() {
   const {
     isSubscribed,
     isLoading: subLoading,
-    trialExpiredUnpaid,
   } = useSubscription();
-  const {
-    trialExpired: sessionTrialExpired,
-    isLoading: trialLoading,
-  } = useTrialSessions();
-  // Migration rule: an account that already consumed the legacy store trial
-  // does not receive three additional free drives after that trial expires.
-  const trialExpired = sessionTrialExpired || trialExpiredUnpaid;
   const c = useColors();
   const router = useRouter();
   // Explicit navigator-ready signal: the root navigation state gets a key only
@@ -439,28 +430,17 @@ function RootLayoutNav() {
       router.replace("/onboarding");
       return;
     }
-    // Onboarding done — wait for RevenueCat AND trial session count to resolve.
-    // trialLoading clears as soon as AsyncStorage is read (< 50 ms), so this
-    // adds negligible cold-start delay while guaranteeing the routing decision
-    // is made with the correct trial status.
-    if (subLoading || trialLoading) return;
+    // Onboarding done — wait for RevenueCat before deciding whether the driver
+    // must start a subscription or can enter with an active entitlement.
+    if (subLoading) return;
     checked.current = true;
     // Only route to paywall if we've never seen a valid subscription in this
     // session. wasSubscribed guards against a transient isSubscribed=false that
     // RevenueCat emits while re-validating entitlements after a background resume.
     if (!isSubscribed && !wasSubscribed.current) {
-      // Non-subscriber: show paywall only after the 3-session free trial is used up.
-      // Users who still have trial sessions remaining are allowed through normally.
-      if (trialExpired) {
-        router.replace("/paywall");
-      } else {
-        // Still in trial — grant access and prompt for location/name as usual.
-        requestLocationPermission().catch(() => {});
-        if (!driverName && !namePromptShown.current) {
-          namePromptShown.current = true;
-          router.replace({ pathname: "/onboarding-name", params: { mode: "existing" } } as any);
-        }
-      }
+      // Premium access starts only after the user begins the store-backed trial
+      // or buys a plan. The trial itself is capped at three qualifying drives.
+      router.replace("/paywall");
     } else {
       requestLocationPermission().catch(() => {});
       // Soft prompt for existing users who never provided a name — shown once
@@ -470,7 +450,7 @@ function RootLayoutNav() {
         router.replace({ pathname: "/onboarding-name", params: { mode: "existing" } } as any);
       }
     }
-  }, [hydrated, navReady, onboardingComplete, isSubscribed, subLoading, versionCheck, trialExpired, trialLoading]);
+  }, [hydrated, navReady, onboardingComplete, isSubscribed, subLoading, versionCheck]);
 
   // ── Deep link handler (geo: URIs and msafiri:// scheme) ────────────────────
   // Handles both cold-start (app launched from a location tap) and warm-start
@@ -482,14 +462,11 @@ function RootLayoutNav() {
   const pendingDeepLinkRef = useRef<ReturnType<typeof parseNavigationUrl> | null>(null);
   const handleNavigationUrl = useCallback(
     (url: string) => {
-      // Deep links are also a valid way to start a free drive. Wait for the
-      // trial status before accepting one so an exhausted user cannot bypass
-      // the post-trial subscription gate through an external map link.
+      // Deep links cannot bypass the subscription gate.
       if (
         !hydrated ||
         !onboardingComplete ||
-        trialLoading ||
-        (!isSubscribed && !wasSubscribed.current && trialExpired)
+        (!isSubscribed && !wasSubscribed.current)
       ) return;
       const dest = parseNavigationUrl(url);
       if (!dest) return;
@@ -501,7 +478,7 @@ function RootLayoutNav() {
       // Navigate to Drive Mode where the map and navigation live
       router.replace("/(tabs)/drive");
     },
-    [hydrated, navReady, onboardingComplete, isSubscribed, trialExpired, trialLoading, setNavDestination, router]
+    [hydrated, navReady, onboardingComplete, isSubscribed, setNavDestination, router]
   );
 
   // Flush a queued deep link as soon as the navigator is ready

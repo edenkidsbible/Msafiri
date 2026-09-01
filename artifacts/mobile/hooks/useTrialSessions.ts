@@ -1,8 +1,8 @@
 /**
  * Trial session tracking for the session-based free trial.
  *
- * Non-subscribers get FREE_TRIAL_SESSIONS completed drive sessions before
- * the trial expires and the paywall appears.  The count survives app
+ * A store-backed introductory trial includes at most FREE_TRIAL_SESSIONS
+ * completed drive sessions. The count survives app
  * reinstall because it is keyed by RevenueCat's `originalAppUserId`, which
  * persists via the user's Apple ID (iOS) or Play Store account (Android).
  *

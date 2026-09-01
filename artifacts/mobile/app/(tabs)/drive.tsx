@@ -435,25 +435,27 @@ export default function DriveScreen() {
   const alertFocusModeRef = useRef(false);
 
   // ── Subscription / trial gate ────────────────────────────────────────────
-  const { isSubscribed, trialExpiredUnpaid } = useSubscription();
+  const { isSubscribed, isOnTrial, trialExpiredUnpaid } = useSubscription();
   const {
     trialExpired: sessionTrialExpired,
     sessionsUsed,
     isLoading: trialLoading,
     recordSession: recordTrialSession,
   } = useTrialSessions();
-  // Do not grant a second trial to accounts that already consumed the legacy
-  // Apple/Google three-day store trial.
+  // The store controls the three-day window; Msafiri separately limits the
+  // active introductory trial to three qualifying drives.
   const trialExpired = sessionTrialExpired || trialExpiredUnpaid;
   const sessionsRemaining = FREE_TRIAL_SESSIONS - sessionsUsed;
   const showFreeDriveCounter =
-    !BYPASS_PAYWALL && !isSubscribed && !trialExpired && !trialLoading;
+    !BYPASS_PAYWALL && isOnTrial && !sessionTrialExpired && !trialLoading;
   // Refs for stable reads inside useFocusEffect without re-creating callbacks.
   const trialExpiredRef  = useRef(false);
   const isSubscribedRef  = useRef(false);
+  const isOnTrialRef     = useRef(false);
   const sessionsUsedRef  = useRef(0);
   trialExpiredRef.current  = trialExpired;
   isSubscribedRef.current  = isSubscribed;
+  isOnTrialRef.current     = isOnTrial;
   sessionsUsedRef.current  = sessionsUsed;
 
   // ── Live Trip state ──────────────────────────────────────────────────────
@@ -693,8 +695,16 @@ export default function DriveScreen() {
     // picker. The focus effect also checks this, but a live trial update can
     // arrive while the Drive screen remains focused.
     if (trialLoading) return;
-    if (!BYPASS_PAYWALL && !isSubscribedRef.current && trialExpiredRef.current) {
+    if (!BYPASS_PAYWALL && !isSubscribedRef.current) {
       router.replace("/paywall" as any);
+      return;
+    }
+    if (!BYPASS_PAYWALL && isOnTrialRef.current && trialExpiredRef.current) {
+      Alert.alert(
+        "Trial drive limit reached",
+        `You've completed the ${FREE_TRIAL_SESSIONS} qualifying drives included in your free trial. Unlimited driving unlocks when the paid subscription period begins.`,
+        [{ text: "OK" }],
+      );
       return;
     }
     if (tripActive) {
@@ -743,7 +753,7 @@ export default function DriveScreen() {
       tripStartTimeRef.current = now;
       if (
         !BYPASS_PAYWALL &&
-        !isSubscribedRef.current &&
+        isOnTrialRef.current &&
         !trialExpiredRef.current
       ) {
         const markerGeneration = ++freeDriveMarkerGenerationRef.current;
@@ -862,11 +872,14 @@ export default function DriveScreen() {
     // The callback is re-registered when loading finishes, so an exhausted
     // account cannot briefly start a fourth drive during cold start.
     if (trialLoading) return;
-    // ── Trial gate: block a 4th+ drive once the 3-session trial is used up ──
+    // ── Trial gate: block a 4th+ drive during the active store trial ──
     // Reads from refs (not state) so the useFocusEffect callback remains stable
     // and doesn't need subscription/trial values in its own dep array.
-    if (!BYPASS_PAYWALL && !isSubscribedRef.current && trialExpiredRef.current) {
+    if (!BYPASS_PAYWALL && !isSubscribedRef.current) {
       router.replace("/paywall" as any);
+      return;
+    }
+    if (!BYPASS_PAYWALL && isOnTrialRef.current && trialExpiredRef.current) {
       return;
     }
     if (navDestination) {
@@ -1154,7 +1167,7 @@ export default function DriveScreen() {
     // This prevents accidental short sessions from consuming a free drive.
     const qualifiesForTrial = wallClockS >= 300 || snap.distanceM >= 2000;
     const trialDrivesRemaining =
-      !isSubscribedRef.current && !trialExpiredRef.current && qualifiesForTrial
+      isOnTrialRef.current && !trialExpiredRef.current && qualifiesForTrial
         ? Math.max(0, FREE_TRIAL_SESSIONS - (sessionsUsedRef.current + 1))
         : null;
 
@@ -1203,7 +1216,7 @@ export default function DriveScreen() {
       !tripActive ||
       trialLoading ||
       BYPASS_PAYWALL ||
-      isSubscribed ||
+      (isSubscribed && !isOnTrial) ||
       trialExpired
     ) {
       return;
@@ -1227,7 +1240,7 @@ export default function DriveScreen() {
         );
 
         timeout = setTimeout(() => {
-          if (!tripActive || isSubscribed || trialExpired) return;
+          if (!tripActive || (isSubscribed && !isOnTrial) || trialExpired) return;
 
           // End first so the normal finalisation and trial-count path runs even
           // if the operating system later dismisses the explanatory alert.
@@ -1248,7 +1261,7 @@ export default function DriveScreen() {
       cancelled = true;
       if (timeout) clearTimeout(timeout);
     };
-  }, [tripActive, trialLoading, isSubscribed, trialExpired]);
+  }, [tripActive, trialLoading, isSubscribed, isOnTrial, trialExpired]);
 
   // If the OS killed the app during a free drive, consume that abandoned
   // session once its persisted 12-hour window has elapsed. Removing the marker
@@ -1257,7 +1270,7 @@ export default function DriveScreen() {
     if (
       trialLoading ||
       BYPASS_PAYWALL ||
-      isSubscribed ||
+      (isSubscribed && !isOnTrial) ||
       trialExpired
     ) {
       return;
@@ -1281,6 +1294,7 @@ export default function DriveScreen() {
   }, [
     trialLoading,
     isSubscribed,
+    isOnTrial,
     trialExpired,
     deviceId,
     recordTrialSession,
@@ -1293,7 +1307,7 @@ export default function DriveScreen() {
     if (
       !tripActive ||
       BYPASS_PAYWALL ||
-      isSubscribed ||
+      (isSubscribed && !isOnTrial) ||
       !trialExpired
     ) {
       return;
@@ -1302,7 +1316,7 @@ export default function DriveScreen() {
     captureAndStopRef.current();
     Alert.alert(
       "Free drives complete",
-      "You've used your three free drives. Subscribe to start another drive.",
+      "You've used the three qualifying drives included in your free trial. Unlimited driving unlocks when the paid subscription period begins.",
       [
         {
           text: "View Plans",
@@ -1311,7 +1325,7 @@ export default function DriveScreen() {
       ],
       { cancelable: false },
     );
-  }, [tripActive, isSubscribed, trialExpired]);
+  }, [tripActive, isSubscribed, isOnTrial, trialExpired]);
 
   // ── End-trip effect: finalise server session when tripActive goes false ───
   useEffect(() => {
@@ -1941,10 +1955,10 @@ export default function DriveScreen() {
               </Text>
             </View>
 
-            {/* ── Free-trial sessions remaining pill ───────────────────────
-                Shown to non-subscribers who still have free drives left.
-                Turns amber on the last drive; disappears once subscribed
-                or after the trial expires.                                */}
+            {/* ── Store-trial sessions remaining pill ─────────────────────
+                Shown only during an active introductory subscription trial.
+                Turns amber on the last included drive and disappears once
+                the subscription converts to paid.                         */}
             {showFreeDriveCounter && (
               <View style={{
                 flexDirection: "row", alignItems: "center", gap: 6,
@@ -1969,8 +1983,8 @@ export default function DriveScreen() {
                     : c.primary,
                 }}>
                   {sessionsRemaining === 1
-                    ? "1 free drive left"
-                    : `${sessionsRemaining} free drives left`}
+                    ? "1 trial drive left"
+                    : `${sessionsRemaining} trial drives left`}
                 </Text>
               </View>
             )}
@@ -3400,7 +3414,7 @@ export default function DriveScreen() {
           }]}
           onLayout={(e) => setLiveTripSheetHeight(e.nativeEvent.layout.height)}
         >
-          {/* Compact status row: free-drive allowance on the left and Road
+          {/* Compact status row: trial-drive allowance on the left and Road
               Channels voice reporting on the far right. */}
           <View style={styles.driveStatusRow}>
             {showFreeDriveCounter ? (
@@ -3415,7 +3429,7 @@ export default function DriveScreen() {
               >
                 <Ionicons name="leaf-outline" size={12} color="#22C55E" />
                 <Text style={styles.inDriveTrialPillTxt} numberOfLines={1}>
-                  Free Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}
+                  Trial Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}
                 </Text>
               </View>
             ) : <View style={styles.driveStatusSpacer} />}

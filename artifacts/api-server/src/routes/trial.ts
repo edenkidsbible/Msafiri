@@ -4,7 +4,7 @@ import { eq, sql } from "drizzle-orm";
 
 const router = Router();
 
-/** Number of free drive sessions before the trial expires. */
+/** Maximum qualifying drive sessions included in the store-backed free trial. */
 const FREE_TRIAL_SESSIONS = 3;
 
 /**

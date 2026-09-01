@@ -59,6 +59,12 @@ function formatIntroPeriod(intro: IntroPrice): string {
   return totalUnits === 1 ? `first ${unit}` : `first ${totalUnits} ${unit}s`;
 }
 
+function formatIntroDuration(intro: IntroPrice): string {
+  const totalUnits = intro.cycles * intro.periodNumberOfUnits;
+  const unit = intro.periodUnit.toLowerCase();
+  return totalUnits === 1 ? `1 ${unit}` : `${totalUnits} ${unit}s`;
+}
+
 /**
  * Build the renewal description shown in legal text and confirmation dialog.
  * e.g. "KSh 99 for the first month, then KSh 299/month"
@@ -134,14 +140,14 @@ export function PaywallModal({ visible, onClose }: Props) {
     monthlyPkg && isDefinitelyIntroEligible(monthlyPkg.product.identifier)
       ? (monthlyPkg.product.introPrice as IntroPrice | null) ?? null
       : null;
-  // Free access is granted by completed driving sessions, not by a timed store
-  // trial. Only advertise a paid introductory store price.
-  const monthlyIntroPrice =
-    rawMonthlyIntroPrice && rawMonthlyIntroPrice.price > 0 ? rawMonthlyIntroPrice : null;
+  // RevenueCat reflects the introductory offer configured in App Store Connect
+  // or Google Play. A zero price is the real store-backed free trial.
+  const monthlyIntroPrice = rawMonthlyIntroPrice;
 
   // Intro offer is only active for the monthly plan (weekly has no intro offer).
   const chosenIntroPrice: IntroPrice | null =
     selectedPkg === "$rc_monthly" ? monthlyIntroPrice : null;
+  const chosenIsFreeTrial = chosenIntroPrice?.price === 0;
 
   // ── Handlers ──────────────────────────────────────────────────────────────────
 
@@ -166,7 +172,9 @@ export function PaywallModal({ visible, onClose }: Props) {
   // ── Derived display strings ───────────────────────────────────────────────────
 
   // CTA label leads with the intro price so the first action feels low-stakes.
-  const ctaLabel = chosenIntroPrice
+  const ctaLabel = chosenIsFreeTrial
+    ? `Start ${formatIntroDuration(chosenIntroPrice)} Free Trial`
+    : chosenIntroPrice
     ? `Start at ${chosenIntroPrice.priceString}`
     : "Subscribe Now";
 
@@ -185,6 +193,9 @@ export function PaywallModal({ visible, onClose }: Props) {
       return "Subscription auto-renews unless cancelled at least 24 hours before the end of the current period. Manage or cancel anytime in your App Store or Google Play account settings.";
     }
     if (chosenIntroPrice) {
+      if (chosenIsFreeTrial) {
+        return `No charge today. Your ${formatIntroDuration(chosenIntroPrice)} free trial includes up to 3 qualifying drives. After the trial, ${chosenPkg.product.priceString}/${regularPeriodLabel} will be charged automatically unless cancelled at least 24 hours before renewal. Manage or cancel anytime in your App Store or Google Play account settings.`;
+      }
       // Describe intro period then renewal — no duplication.
       return `You'll be charged ${chosenIntroPrice.priceString} for the ${formatIntroPeriod(chosenIntroPrice)}, then ${chosenPkg.product.priceString}/${regularPeriodLabel} thereafter. Subscription auto-renews at the regular price until cancelled at least 24 hours before renewal. Manage or cancel anytime in your App Store or Google Play account settings.`;
     }
@@ -237,7 +248,9 @@ export function PaywallModal({ visible, onClose }: Props) {
               <Ionicons name="pricetag" size={16} color="#16a34a" />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.introBadgeTitle, { color: "#16a34a" }]}>
-                  Introductory offer — {monthlyIntroPrice.priceString} {formatIntroPeriod(monthlyIntroPrice)}
+                  {monthlyIntroPrice.price === 0
+                    ? `${formatIntroDuration(monthlyIntroPrice)} free trial · 3 drives included`
+                    : `Introductory offer — ${monthlyIntroPrice.priceString} ${formatIntroPeriod(monthlyIntroPrice)}`}
                 </Text>
                 <Text style={[styles.introBadgeSub, { color: "#16a34a" }]}>
                   then {monthlyPkg!.product.priceString}/month · Cancel anytime
@@ -302,7 +315,7 @@ export function PaywallModal({ visible, onClose }: Props) {
                     { backgroundColor: monthlyIntroPrice ? "#16a34a" : c.primary },
                   ]}>
                     <Text style={styles.planBestText}>
-                      {monthlyIntroPrice ? "INTRO OFFER" : "BEST VALUE"}
+                      {monthlyIntroPrice?.price === 0 ? "FREE TRIAL" : monthlyIntroPrice ? "INTRO OFFER" : "BEST VALUE"}
                     </Text>
                   </View>
 
@@ -317,7 +330,9 @@ export function PaywallModal({ visible, onClose }: Props) {
                       {monthlyIntroPrice ? (
                         // Subtext derived from actual period data, not hard-coded
                         <Text style={[styles.planSave, { color: "#16a34a" }]}>
-                          {monthlyIntroPrice.priceString} for the {formatIntroPeriod(monthlyIntroPrice)}
+                          {monthlyIntroPrice.price === 0
+                            ? `${formatIntroDuration(monthlyIntroPrice)} free · maximum 3 drives`
+                            : `${monthlyIntroPrice.priceString} for the ${formatIntroPeriod(monthlyIntroPrice)}`}
                         </Text>
                       ) : (
                         <Text style={[styles.planSave, { color: c.primary }]}>
@@ -329,7 +344,7 @@ export function PaywallModal({ visible, onClose }: Props) {
                     {monthlyIntroPrice ? (
                       <View style={styles.planPriceWrap}>
                         <Text style={[styles.planPrice, { color: "#16a34a" }]}>
-                          {monthlyIntroPrice.priceString}
+                          {monthlyIntroPrice.price === 0 ? "Free" : monthlyIntroPrice.priceString}
                         </Text>
                         <Text style={[styles.planPriceRegular, { color: c.mutedForeground }]}>
                           then {monthlyPkg.product.priceString}/mo
@@ -457,7 +472,9 @@ export function PaywallModal({ visible, onClose }: Props) {
           {/* Renewal reminder under the CTA — driven by actual period data */}
           {chosenIntroPrice && chosenPkg && (
             <Text style={[styles.ctaRenewalNote, { color: c.mutedForeground }]}>
-              Renews at {chosenPkg.product.priceString}/{regularPeriodLabel} after the {formatIntroPeriod(chosenIntroPrice)}
+              {chosenIsFreeTrial
+                ? `No charge today · Then ${chosenPkg.product.priceString}/${regularPeriodLabel} after ${formatIntroDuration(chosenIntroPrice)}`
+                : `Renews at ${chosenPkg.product.priceString}/${regularPeriodLabel} after the ${formatIntroPeriod(chosenIntroPrice)}`}
             </Text>
           )}
 

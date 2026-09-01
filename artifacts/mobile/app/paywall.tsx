@@ -19,7 +19,7 @@ import { loadVehicles } from "@/utils/savedVehicles";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { AdminPinModal } from "@/components/AdminPinModal";
-import { FREE_TRIAL_SESSIONS, useTrialSessions } from "@/hooks/useTrialSessions";
+import { FREE_TRIAL_SESSIONS } from "@/hooks/useTrialSessions";
 
 type Result = "success" | "restored" | "error" | null;
 
@@ -41,6 +41,12 @@ function formatIntroPeriod(intro: IntroPrice): string {
   const totalUnits = intro.cycles * intro.periodNumberOfUnits;
   const unit = intro.periodUnit.toLowerCase();
   return totalUnits === 1 ? `first ${unit}` : `first ${totalUnits} ${unit}s`;
+}
+
+function formatIntroDuration(intro: IntroPrice): string {
+  const totalUnits = intro.cycles * intro.periodNumberOfUnits;
+  const unit = intro.periodUnit.toLowerCase();
+  return totalUnits === 1 ? `1 ${unit}` : `${totalUnits} ${unit}s`;
 }
 
 /** Full charge description, e.g. "KSh 99 for the first month, then KSh 299/month". */
@@ -130,6 +136,7 @@ const sd = StyleSheet.create({
 function SuccessScreen({
   planLabel,
   planPrice,
+  trialDuration,
   onEnter,
   colors: c,
   topPad,
@@ -137,6 +144,7 @@ function SuccessScreen({
 }: {
   planLabel: string;
   planPrice: string;
+  trialDuration?: string | null;
   onEnter: () => void;
   colors: ReturnType<typeof useColors>;
   topPad: number;
@@ -158,11 +166,23 @@ function SuccessScreen({
         </View>
       </View>
 
-      <Text style={[ss.title, { color: c.foreground }]}>You're on Premium!</Text>
+      <Text style={[ss.title, { color: c.foreground }]}>
+        {trialDuration ? "Your Free Trial Is Active!" : "You're on Premium!"}
+      </Text>
       <Text style={[ss.sub, { color: c.mutedForeground }]}>
-        Your{" "}
-        <Text style={{ color: c.foreground, fontFamily: "Inter_600SemiBold" }}>{planLabel}</Text>
-        {" "}plan is active. Every Msafiri feature is now unlocked.
+        {trialDuration ? (
+          <>
+            Your{" "}
+            <Text style={{ color: c.foreground, fontFamily: "Inter_600SemiBold" }}>{trialDuration}</Text>
+            {" "}trial includes up to {FREE_TRIAL_SESSIONS} qualifying drives. Unlimited driving begins when the paid period starts.
+          </>
+        ) : (
+          <>
+            Your{" "}
+            <Text style={{ color: c.foreground, fontFamily: "Inter_600SemiBold" }}>{planLabel}</Text>
+            {" "}plan is active. Every Msafiri feature is now unlocked.
+          </>
+        )}
       </Text>
 
       {/* Plan summary card */}
@@ -172,7 +192,9 @@ function SuccessScreen({
             <Ionicons name="calendar-outline" size={18} color={c.primary} />
           </View>
           <Text style={[ss.cardLabel, { color: c.mutedForeground }]}>Plan</Text>
-          <Text style={[ss.cardValue, { color: c.foreground }]}>{planLabel}</Text>
+          <Text style={[ss.cardValue, { color: c.foreground }]}>
+            {trialDuration ? `${trialDuration} free trial` : planLabel}
+          </Text>
         </View>
         <View style={[ss.div, { backgroundColor: c.border }]} />
         <View style={ss.cardRow}>
@@ -181,7 +203,7 @@ function SuccessScreen({
           </View>
           <Text style={[ss.cardLabel, { color: c.mutedForeground }]}>Price</Text>
           <Text style={[ss.cardValue, { color: c.foreground }]}>
-            {planPrice}/{planLabel === "Weekly" ? "week" : "month"}
+            {trialDuration ? "Free today" : `${planPrice}/${planLabel === "Weekly" ? "week" : "month"}`}
           </Text>
         </View>
         <View style={[ss.div, { backgroundColor: c.border }]} />
@@ -346,22 +368,15 @@ export default function PaywallScreen() {
   const insets = useSafeAreaInsets();
   const { requestLocationPermission, isAdmin, adminLogout } = useApp();
   const {
-    offerings, isLoading, offeringsLoading, offeringsError, refetchOfferings,
+    offerings, offeringsLoading, offeringsError, refetchOfferings,
     purchase, isPurchasing, restore, isRestoring, isDefinitelyIntroEligible,
-    trialExpiredUnpaid,
   } = useSubscription();
-  const {
-    sessionsUsed,
-    trialExpired: sessionTrialExpired,
-  } = useTrialSessions();
-  // Legacy store-trial users keep access while RevenueCat reports an active
-  // entitlement. Once that trial expires unpaid, they have no new free drives.
-  const trialExpired = sessionTrialExpired || trialExpiredUnpaid;
 
   const [selectedPkg, setSelectedPkg] = useState<string>("$rc_monthly");
   const [result, setResult] = useState<Result>(null);
   const [activePlanLabel, setActivePlanLabel] = useState("");
   const [activePlanPrice, setActivePlanPrice] = useState("");
+  const [activeTrialDuration, setActiveTrialDuration] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
 
   const topPad = Platform.OS === "web" ? 20 : insets.top + 8;
@@ -376,8 +391,6 @@ export default function PaywallScreen() {
   const monthlyPriceString = monthlyPkg?.product.priceString ?? "";
   const chosenPriceString  = selectedPkg === "$rc_weekly" ? weeklyPriceString : monthlyPriceString;
   const periodLabel = selectedPkg === "$rc_weekly" ? "week" : "month";
-  const sessionsRemaining = Math.max(0, FREE_TRIAL_SESSIONS - sessionsUsed);
-  const nextFreeDrive = Math.min(sessionsUsed + 1, FREE_TRIAL_SESSIONS);
   const storeName = Platform.OS === "ios" ? "Apple App Store" : "Google Play";
 
   // ── Intro (discounted first-period) price ─────────────────────────────────────
@@ -388,12 +401,10 @@ export default function PaywallScreen() {
     monthlyPkg && isDefinitelyIntroEligible(monthlyPkg.product.identifier)
       ? (monthlyPkg.product.introPrice as IntroPrice | null) ?? null
       : null;
-  // The app's free access is session-based. Do not advertise a legacy store
-  // free trial here; only show a genuinely paid introductory store price.
-  const monthlyIntroPrice =
-    rawMonthlyIntroPrice && rawMonthlyIntroPrice.price > 0 ? rawMonthlyIntroPrice : null;
+  const monthlyIntroPrice = rawMonthlyIntroPrice;
   const chosenIntroPrice: IntroPrice | null =
     selectedPkg === "$rc_monthly" ? monthlyIntroPrice : null;
+  const chosenIsFreeTrial = chosenIntroPrice?.price === 0;
   // Unified charge description reused in legal text, CTA pricing, and trust note.
   const chargeDescription = chosenPkg && chosenIntroPrice
     ? formatIntroWithRenewal(chosenIntroPrice, chosenPkg.product.priceString, periodLabel)
@@ -427,6 +438,7 @@ export default function PaywallScreen() {
       await purchase(chosenPkg);
       setActivePlanLabel(selectedPkg === "$rc_weekly" ? "Weekly" : "Monthly");
       setActivePlanPrice(chosenPkg.product.priceString);
+      setActiveTrialDuration(chosenIsFreeTrial ? formatIntroDuration(chosenIntroPrice!) : null);
       setResult("success");
     } catch (e: any) {
       if (e?.userCancelled) return;
@@ -480,10 +492,6 @@ export default function PaywallScreen() {
   }
 
   function handleDismiss() {
-    if (!trialExpired) {
-      void handleEnterApp();
-      return;
-    }
     const buttons: any[] = [
       { text: "Subscribe Now", style: "default" },
     ];
@@ -492,7 +500,7 @@ export default function PaywallScreen() {
     }
     Alert.alert(
       "Subscription Required",
-      `You've completed your ${FREE_TRIAL_SESSIONS} free driving sessions. Subscribe to keep using Msafiri. You can cancel anytime from your ${storeName} settings.`,
+      `Start your free trial or subscribe to access Msafiri Premium. The free trial includes up to ${FREE_TRIAL_SESSIONS} qualifying drives and can be cancelled anytime from your ${storeName} settings.`,
       buttons,
       { cancelable: true }
     );
@@ -503,6 +511,7 @@ export default function PaywallScreen() {
     return (
       <SuccessScreen
         planLabel={activePlanLabel} planPrice={activePlanPrice}
+        trialDuration={activeTrialDuration}
         onEnter={handleEnterApp} colors={c} topPad={topPad} botPad={botPad}
       />
     );
@@ -556,11 +565,11 @@ export default function PaywallScreen() {
             <Text style={[p.heroSub, { color: c.mutedForeground }]}>
               Premium tools to protect you, your car, and the people who matter.
             </Text>
-            {!trialExpired ? (
+            {monthlyIntroPrice?.price === 0 ? (
               <View style={[p.trialPill, { backgroundColor: c.primary + "18", borderColor: c.primary + "44" }]}>
                 <Ionicons name="gift-outline" size={13} color={c.primary} />
                 <Text style={[p.trialTxt, { color: c.primary }]}>
-                  FREE DRIVE {nextFreeDrive} OF {FREE_TRIAL_SESSIONS}
+                  {formatIntroDuration(monthlyIntroPrice).toUpperCase()} FREE TRIAL · {FREE_TRIAL_SESSIONS} DRIVES MAX
                 </Text>
               </View>
             ) : monthlyIntroPrice ? (
@@ -574,7 +583,7 @@ export default function PaywallScreen() {
               <View style={[p.trialPill, { backgroundColor: c.primary + "18", borderColor: c.primary + "44" }]}>
                 <Ionicons name="shield-checkmark-outline" size={13} color={c.primary} />
                 <Text style={[p.trialTxt, { color: c.primary }]}>
-                  {FREE_TRIAL_SESSIONS} FREE DRIVES COMPLETE
+                  CANCEL ANYTIME
                 </Text>
               </View>
             )}
@@ -639,7 +648,7 @@ export default function PaywallScreen() {
               activeOpacity={0.8}
             >
               <View style={[p.bestBadge, { backgroundColor: monthlyIntroPrice ? "#16a34a" : c.primary }]}>
-                <Text style={p.bestTxt}>{monthlyIntroPrice ? "INTRO OFFER" : "BEST VALUE"}</Text>
+                <Text style={p.bestTxt}>{monthlyIntroPrice?.price === 0 ? "FREE TRIAL" : monthlyIntroPrice ? "INTRO OFFER" : "BEST VALUE"}</Text>
               </View>
               <View style={p.planRow}>
                 <View style={[p.radio, { borderColor: selectedPkg === "$rc_monthly" ? c.primary : c.mutedForeground }]}>
@@ -649,7 +658,9 @@ export default function PaywallScreen() {
                   <Text style={[p.planName, { color: c.foreground }]}>Monthly</Text>
                   {monthlyIntroPrice ? (
                     <Text style={[p.planNote, { color: "#16a34a" }]}>
-                      {monthlyIntroPrice.priceString} {formatIntroPeriod(monthlyIntroPrice)}
+                      {monthlyIntroPrice.price === 0
+                        ? `${formatIntroDuration(monthlyIntroPrice)} free · maximum ${FREE_TRIAL_SESSIONS} drives`
+                        : `${monthlyIntroPrice.priceString} ${formatIntroPeriod(monthlyIntroPrice)}`}
                     </Text>
                   ) : (
                     <Text style={[p.planNote, { color: c.primary }]}>
@@ -659,7 +670,9 @@ export default function PaywallScreen() {
                 </View>
                 {monthlyIntroPrice ? (
                   <View style={p.priceBlock}>
-                    <Text style={[p.price, { color: "#16a34a" }]}>{monthlyIntroPrice.priceString}</Text>
+                    <Text style={[p.price, { color: "#16a34a" }]}>
+                      {monthlyIntroPrice.price === 0 ? "Free" : monthlyIntroPrice.priceString}
+                    </Text>
                     <Text style={[p.pricePeriod, { color: c.mutedForeground }]}>then {monthlyPriceString}/mo</Text>
                   </View>
                 ) : (
@@ -714,11 +727,10 @@ export default function PaywallScreen() {
 
         {/* Legal */}
         <Text style={[p.legal, { color: c.mutedForeground }]}>
-          {!trialExpired
-            ? `Your ${sessionsRemaining} remaining free driving ${sessionsRemaining === 1 ? "session does" : "sessions do"} not start a subscription. After your third qualifying drive, a paid subscription is required to continue. `
-            : `Your ${FREE_TRIAL_SESSIONS} free driving sessions are complete. `}
           {chosenIntroPrice && chosenPkg
-            ? `You'll be charged ${chosenIntroPrice.priceString} for the ${formatIntroPeriod(chosenIntroPrice)}, then ${chosenPkg.product.priceString}/${periodLabel} thereafter. Subscription auto-renews at the regular price until cancelled at least 24 hours before renewal. `
+            ? chosenIsFreeTrial
+              ? `No charge today. Your ${formatIntroDuration(chosenIntroPrice)} free trial includes up to ${FREE_TRIAL_SESSIONS} qualifying drives. After the trial, ${chosenPkg.product.priceString}/${periodLabel} will be charged automatically unless cancelled at least 24 hours before renewal. `
+              : `You'll be charged ${chosenIntroPrice.priceString} for the ${formatIntroPeriod(chosenIntroPrice)}, then ${chosenPkg.product.priceString}/${periodLabel} thereafter. Subscription auto-renews at the regular price until cancelled at least 24 hours before renewal. `
             : chosenPriceString
               ? `If you subscribe, you'll be charged ${chosenPriceString}/${periodLabel}. The subscription auto-renews until cancelled from your ${storeName} settings. `
               : "Subscriptions auto-renew unless cancelled at least 24 hours before the end of the current period. "}
@@ -737,8 +749,10 @@ export default function PaywallScreen() {
             {chosenIntroPrice ? (
               <>
                 <Text style={[p.ctaPriceMain, { color: "#16a34a" }]}>
-                  {chosenIntroPrice.priceString}
-                  <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#16a34a" }}> {formatIntroPeriod(chosenIntroPrice)}</Text>
+                  {chosenIsFreeTrial ? "Free" : chosenIntroPrice.priceString}
+                  <Text style={{ fontSize: 14, fontFamily: "Inter_400Regular", color: "#16a34a" }}>
+                    {" "}{chosenIsFreeTrial ? `for ${formatIntroDuration(chosenIntroPrice)}` : formatIntroPeriod(chosenIntroPrice)}
+                  </Text>
                 </Text>
                 <Text style={[p.ctaPriceSub, { color: c.mutedForeground }]}>
                   Then {chosenPkg!.product.priceString}/{periodLabel} · cancel anytime
@@ -781,12 +795,14 @@ export default function PaywallScreen() {
             ) : (
               <>
                 <Ionicons
-                  name={chosenIntroPrice ? "pricetag-outline" : "shield-checkmark-outline"}
+                  name={chosenIsFreeTrial ? "gift-outline" : chosenIntroPrice ? "pricetag-outline" : "shield-checkmark-outline"}
                   size={20}
                   color="#fff"
                 />
                 <Text style={p.ctaBtnTxt}>
-                  {chosenIntroPrice
+                  {chosenIsFreeTrial
+                    ? `Start ${formatIntroDuration(chosenIntroPrice)} Free Trial`
+                    : chosenIntroPrice
                     ? `Start at ${chosenIntroPrice.priceString}`
                     : "Subscribe Now"}
                 </Text>
@@ -800,7 +816,9 @@ export default function PaywallScreen() {
         <View style={p.trustNote}>
           <Ionicons name="lock-closed-outline" size={12} color={c.mutedForeground} />
           <Text style={[p.trustNoteTxt, { color: c.mutedForeground }]}>
-            {chosenIntroPrice
+            {chosenIsFreeTrial
+              ? `No charge today · Secured by ${storeName}`
+              : chosenIntroPrice
               ? `${chosenIntroPrice.priceString} today · Secured by ${storeName}`
               : `Secured by ${storeName} · Cancel anytime`}
           </Text>
@@ -834,11 +852,11 @@ export default function PaywallScreen() {
         <TouchableOpacity
           onPress={handleDismiss}
           style={p.notNowBtn}
-          accessibilityLabel={trialExpired ? "Not now" : `Start free drive ${nextFreeDrive} of ${FREE_TRIAL_SESSIONS}`}
+          accessibilityLabel="Not now"
           accessibilityRole="button"
         >
-          <Text style={[p.notNowTxt, { color: trialExpired ? c.mutedForeground : c.primary }]}>
-            {trialExpired ? "Not now" : `Start Free Drive ${nextFreeDrive} of ${FREE_TRIAL_SESSIONS}`}
+          <Text style={[p.notNowTxt, { color: c.mutedForeground }]}>
+            Not now
           </Text>
         </TouchableOpacity>
       </View>
