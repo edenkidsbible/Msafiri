@@ -21,8 +21,13 @@ const VOICE_CHANNEL_TYPES = [
 
 type VoiceChannelType = typeof VOICE_CHANNEL_TYPES[number];
 
+// Channel sound and importance are immutable after Android creates a channel.
+// Increment this suffix whenever the packaged Yna files or channel sound setup
+// changes so existing installs receive fresh, correctly configured channels.
+const VOICE_CHANNEL_VERSION = "v2";
+
 function voiceChannelId(type: VoiceChannelType): string {
-  return `msafiri_voice_${type}`;
+  return `msafiri_voice_${VOICE_CHANNEL_VERSION}_${type}`;
 }
 
 /**
@@ -84,9 +89,8 @@ export async function ensureAndroidNotificationChannels(): Promise<boolean> {
 
       // ── Per-type Yna Agalo voice channels ────────────────────────────
       // Each channel plays the matching Yna Agalo voice clip for its hazard
-      // type. Created with new IDs (msafiri_voice_*) so they are never
-      // conflated with the legacy msafiri_alerts channel and are set up fresh
-      // on every install with the correct sound file.
+      // type. Versioned IDs guarantee that an existing install which cached a
+      // missing/silent sound on an older channel receives a fresh channel.
       const VOICE_CHANNEL_DEFS: Array<{ type: VoiceChannelType; label: string }> = [
         { type: "camera",     label: "Speed Camera Alerts"      },
         { type: "police",     label: "Police Checkpoint Alerts"  },
@@ -125,6 +129,27 @@ export async function ensureAndroidNotificationChannels(): Promise<boolean> {
         console.warn(
           "[androidNotifications] Incident Alerts channel is unavailable or muted. " +
           "Open Android notification settings and enable sound for Msafiri.",
+        );
+        return false;
+      }
+
+      // Validate the channels that background drive alerts actually target,
+      // rather than only checking the generic fallback channel.
+      const voiceChannels = await Promise.all(
+        VOICE_CHANNEL_TYPES.map((type) =>
+          Notifications.getNotificationChannelAsync(voiceChannelId(type)),
+        ),
+      );
+      if (
+        voiceChannels.some(
+          (channel) =>
+            !channel ||
+            channel.importance < Notifications.AndroidImportance.HIGH ||
+            !channel.sound,
+        )
+      ) {
+        console.warn(
+          "[androidNotifications] One or more voice alert channels are unavailable or silent.",
         );
         return false;
       }

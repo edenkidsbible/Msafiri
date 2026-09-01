@@ -18,4 +18,8 @@ for (const [platform, source] of [["iOS", iosVoice], ["Android", androidVoice]])
   test(`${platform} waits for rewind before playing a cached alert`, () => {
     assert.match(source, /await (?:cached|player)\.seekTo\(0\)/);
   });
+
+  test(`${platform} plays foreground voice alerts at full volume`, () => {
+    assert.match(source, /(?:cached|player)\.volume\s*=\s*1/);
+  });
 }

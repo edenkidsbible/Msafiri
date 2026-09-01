@@ -18,6 +18,9 @@ test("Android alert audio has its own high-volume runtime", () => {
 test("Android background alerts verify the channel before scheduling", () => {
   assert.match(channels, /ANDROID_ALERTS_CHANNEL_ID/);
   assert.match(channels, /AndroidImportance\.HIGH/);
+  assert.match(channels, /VOICE_CHANNEL_VERSION\s*=\s*"v2"/);
+  assert.match(channels, /getNotificationChannelAsync\(voiceChannelId\(type\)\)/);
   assert.match(backgroundAlerts, /ensureAndroidNotificationChannels\(\)/);
-  assert.match(backgroundAlerts, /channelId: ANDROID_ALERTS_CHANNEL_ID/);
+  assert.match(backgroundAlerts, /resolveAndroidVoiceChannelId\(winner\.type\)/);
+  assert.match(backgroundAlerts, /androidChannelId \?\? ANDROID_ALERTS_CHANNEL_ID/);
 });
