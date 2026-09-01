@@ -34,6 +34,16 @@ export async function apiGet<T>(path: string, timeoutMs = 10000): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Some successful API actions intentionally return 204 No Content (for
+// example, joining/leaving a Road Channel). Parsing those with res.json()
+// throws "Unexpected end of input" even though the request succeeded.
+async function parseMaybeEmpty<T>(res: Response): Promise<T> {
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
+}
+
 export async function apiPost<T>(path: string, body: unknown, timeoutMs = 10000): Promise<T> {
   if (!API_BASE) throw new Error("API_BASE not configured");
   const res = await fetchWithTimeout(`${API_BASE}${path}`, {
@@ -42,7 +52,7 @@ export async function apiPost<T>(path: string, body: unknown, timeoutMs = 10000)
     body: JSON.stringify(body),
   }, timeoutMs);
   if (!res.ok) return throwApiError(res);
-  return res.json() as Promise<T>;
+  return parseMaybeEmpty<T>(res);
 }
 
 export async function apiPatch<T>(path: string, body: unknown, timeoutMs = 10000): Promise<T> {
@@ -53,17 +63,7 @@ export async function apiPatch<T>(path: string, body: unknown, timeoutMs = 10000
     body: JSON.stringify(body),
   }, timeoutMs);
   if (!res.ok) return throwApiError(res);
-  return res.json() as Promise<T>;
-}
-
-// Parse a response body that may legitimately be empty (204 No Content or a
-// zero-length body). Returns undefined in that case instead of letting
-// res.json() throw on the empty body — DELETE endpoints commonly return 204.
-async function parseMaybeEmpty<T>(res: Response): Promise<T> {
-  if (res.status === 204) return undefined as T;
-  const text = await res.text();
-  if (!text) return undefined as T;
-  return JSON.parse(text) as T;
+  return parseMaybeEmpty<T>(res);
 }
 
 export async function apiDelete<T>(
