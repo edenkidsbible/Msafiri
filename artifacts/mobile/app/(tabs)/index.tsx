@@ -1137,7 +1137,7 @@ const styles = StyleSheet.create({
   heroCard: {
     flexDirection: "row", alignItems: "stretch",
     borderRadius: 22, marginTop: 16, overflow: "hidden",
-    minHeight: 182,
+    minHeight: 152,
   },
   // Large vehicle image on the left — no padding so it bleeds to the card edge
   heroImgWrap: {

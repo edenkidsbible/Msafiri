@@ -103,7 +103,7 @@ function CarImage({ slide, vehicle }: { slide: Slide; vehicle?: SavedVehicle | n
   // Generic PNGs are flipped here via scaleX when flipX is true.
   const flip = slide.flipX ? [{ scaleX: -1 }] : undefined;
   return slide.image === null
-    ? <DefaultVehicleImage width={168} height={132} vehicle={vehicle} />
+    ? <DefaultVehicleImage width={168} height={116} vehicle={vehicle} />
     : <Image
         source={slide.image}
         style={[styles.vehicleImg, flip ? { transform: flip } : undefined]}
@@ -297,11 +297,11 @@ const styles = StyleSheet.create({
   },
   artHalo: {
     position: "absolute",
-    width: 156,
-    height: 156,
-    left: 10,
-    top: 10,
-    borderRadius: 78,
+    width: 142,
+    height: 142,
+    left: 7,
+    top: 5,
+    borderRadius: 71,
     borderWidth: 3,
     borderColor: "#FFFFFF2E",
     backgroundColor: "#FFFFFF0A",
@@ -309,9 +309,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   artIconTile: {
-    width: 76,
-    height: 92,
-    borderRadius: 18,
+    width: 68,
+    height: 82,
+    borderRadius: 17,
     borderWidth: 2,
     borderColor: "#FFFFFF16",
     backgroundColor: "#FFFFFF0A",
@@ -320,12 +320,13 @@ const styles = StyleSheet.create({
   },
   carSlot: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
+    bottom: -2,
+    left: -3,
     alignItems: "flex-start",
     justifyContent: "flex-end",
+    zIndex: 1,
   },
-  vehicleImg: { width: 168, height: 132 },
+  vehicleImg: { width: 168, height: 116 },
   dotsRow: {
     position: "absolute",
     bottom: 12,
@@ -333,6 +334,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 6,
     alignItems: "center",
+    zIndex: 2,
   },
   dot:         { height: 5, borderRadius: 3 },
   dotActive:   { width: 14, backgroundColor: "#FFFFFF" },
