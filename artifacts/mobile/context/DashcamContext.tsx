@@ -248,6 +248,47 @@ function generateUUID(): string {
   });
 }
 
+/**
+ * Recover completed files that reached documentDirectory but whose metadata
+ * commit was interrupted by process termination. CameraView does not expose
+ * the URI of a still-active recording, so only completed/moved files can be
+ * recovered after a force-close.
+ */
+async function recoverOrphanedSegmentFiles(
+  dir: string,
+  indexed: DashcamSegment[],
+): Promise<DashcamSegment[]> {
+  await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+  const knownUris = new Set(indexed.map((s) => s.uri));
+  const names = await FileSystem.readDirectoryAsync(dir);
+  const recovered: DashcamSegment[] = [];
+
+  for (const name of names) {
+    const match = /^seg_(\d+).*\.mp4$/i.exec(name);
+    if (!match) continue;
+    const uri = `${dir}${name}`;
+    if (knownUris.has(uri)) continue;
+    try {
+      const info = await FileSystem.getInfoAsync(uri);
+      if (!info.exists) continue;
+      const timestamp = Number(match[1]);
+      recovered.push({
+        id: name.replace(/\.mp4$/i, ""),
+        uri,
+        startedAt: Number.isFinite(timestamp) ? timestamp : Date.now(),
+        durationS: 0,
+        sizeBytes: (info as any).size ?? 0,
+        locked: false,
+        savedForReview: true,
+        uploadStatus: "none",
+      });
+    } catch {
+      // A file can disappear between directory listing and stat; ignore it.
+    }
+  }
+  return recovered;
+}
+
 // ─── Context ─────────────────────────────────────────────────────────────────
 
 const DashcamContext = createContext<DashcamContextValue | null>(null);
@@ -406,6 +447,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const hydratedRef            = useRef(false);
   const pushDeviceIdRef        = useRef<string | null>(null);
   const backgroundedWhileRecordingRef = useRef(false);
+  /** True when an OS interruption requested the in-flight segment to finish. */
+  const lifecycleSavePendingRef = useRef(false);
+  const interruptionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const appStateRef = useRef(AppState.currentState);
   const processUploadQueueRef  = useRef<() => Promise<void>>(() => Promise.resolve());
   /** ID of the 4-hour "review your clips" reminder so it can be cancelled early. */
   const reviewReminderIdRef    = useRef<string | null>(null);
@@ -513,8 +558,24 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           uploadQueueRef.current = toUpload;
         }
 
-        // 5. Ensure segments directory exists
-        await FileSystem.makeDirectoryAsync(segmentsFsDirRef.current, { intermediates: true });
+        // 5. Recover completed files whose metadata write was interrupted by a
+        // process kill. This makes force-close recovery independent of React
+        // effects and AsyncStorage timing.
+        const recovered = await recoverOrphanedSegmentFiles(
+          segmentsFsDirRef.current,
+          segmentsRef.current,
+        );
+        if (recovered.length > 0) {
+          const next = [...segmentsRef.current, ...recovered]
+            .sort((a, b) => b.startedAt - a.startedAt);
+          await AsyncStorage.setItem(
+            segmentsAsyncKeyRef.current,
+            JSON.stringify(next),
+          );
+          segmentsRef.current = next;
+          setSegments(next);
+          setPendingTripReview(true);
+        }
       } catch (err) {
         console.warn("[Dashcam] hydration error:", err);
       } finally {
@@ -561,7 +622,15 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
             }
           })
         );
-        const live = verified.filter(Boolean) as DashcamSegment[];
+        let live = verified.filter(Boolean) as DashcamSegment[];
+        const recovered = await recoverOrphanedSegmentFiles(
+          segmentsFsDirRef.current,
+          live,
+        ).catch(() => []);
+        if (recovered.length > 0) {
+          live = [...live, ...recovered].sort((a, b) => b.startedAt - a.startedAt);
+          await AsyncStorage.setItem(segmentsAsyncKeyRef.current, JSON.stringify(live));
+        }
         setSegments(live);
         segmentsRef.current = live;
 
@@ -597,71 +666,87 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(id);
   }, [isRecording]);
 
-  // ── iOS background handling ────────────────────────────────────────────────
-  // When the app backgrounds while recording, we:
+  // ── Cross-platform interruption/background handling ───────────────────────
+  // When the app backgrounds or remains inactive during a real interruption:
   //  1. Mark the last 5 unlocked clips as savedForReview (so they survive).
   //  2. Stop the current clip cleanly (no lock — the clip saves as unlocked).
   //  3. Bump recordingEpoch on foreground so the loop restarts.
   // isRecording stays true throughout — the REC pill stays on.
   //
-  // IMPORTANT: only fire on "background", NOT "inactive".
-  // "inactive" fires on every notification banner, control-center swipe,
-  // incoming call alert, and any other transient OS interruption. Treating
-  // "inactive" as a background event stops the current segment and sends a
-  // "Dashcam clips saved" notification on every alert — making it look like
-  // the dashcam randomly stops mid-drive.
+  // Transient "inactive" events (for example a notification banner) are
+  // debounced. Calls and other sustained interruptions remain inactive long
+  // enough to finish the current file, while brief banners do not churn the
+  // camera. The dashcam stays logically active and resumes on foreground.
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
+    const preserveAndStopCurrent = async () => {
+      if (!isRecordingRef.current || lifecycleSavePendingRef.current) return;
+      lifecycleSavePendingRef.current = true;
+      backgroundedWhileRecordingRef.current = true;
+
+      const previous = segmentsRef.current;
+      const rolling = previous
+        .filter((s) => !s.locked && !s.savedForReview)
+        .sort((a, b) => b.startedAt - a.startedAt)
+        .slice(0, UNLOCKED_ROLLING_WINDOW);
+
+      if (rolling.length > 0) {
+        const reviewIds = new Set(rolling.map((s) => s.id));
+        const updated = applyReviewCap(previous.map((s) =>
+          reviewIds.has(s.id) ? { ...s, savedForReview: true } : s
+        ));
+        // Commit metadata before updating UI or deleting anything. The process
+        // may be suspended immediately after this callback returns.
+        try {
+          await AsyncStorage.setItem(
+            segmentsAsyncKeyRef.current,
+            JSON.stringify(updated),
+          );
+          segmentsRef.current = updated;
+          setSegments(updated);
+          const retainedIds = new Set(updated.map((s) => s.id));
+          previous
+            .filter((s) => !retainedIds.has(s.id))
+            .forEach((s) => FileSystem.deleteAsync(s.uri, { idempotent: true }).catch(() => {}));
+        } catch (err) {
+          console.warn("[Dashcam] could not commit interruption snapshot:", err);
+        }
+      }
+
+      setPendingTripReview(true);
+      scheduleReviewReminder();
+      cameraRef.current?.stopRecording();
+    };
 
     const subscription = AppState.addEventListener("change", (nextState) => {
+      appStateRef.current = nextState;
       if (nextState === "background") {
-        if (!isRecordingRef.current) return;
-        backgroundedWhileRecordingRef.current = true;
-
-        // Mark last 5 unlocked clips as savedForReview before stopping, then
-        // cap total review clips to MAX_REVIEW_CLIPS (10 = 2 trips × 5).
-        setSegments((prev) => {
-          const rolling = prev
-            .filter((s) => !s.locked && !s.savedForReview)
-            .sort((a, b) => b.startedAt - a.startedAt)
-            .slice(0, UNLOCKED_ROLLING_WINDOW);
-          if (rolling.length === 0) return prev;
-          const reviewIds = new Set(rolling.map((s) => s.id));
-          const withReview = prev.map((s) =>
-            reviewIds.has(s.id) ? { ...s, savedForReview: true } : s
-          );
-          const capped = applyReviewCap(withReview);
-          segmentsRef.current = capped;
-          return capped;
-        });
-        // Persist immediately — the app may be killed before the async
-        // setSegments effect runs, losing the savedForReview flags.
-        AsyncStorage.setItem(
-          segmentsAsyncKeyRef.current,
-          JSON.stringify(segmentsRef.current),
-        ).catch(() => {});
-        setPendingTripReview(true);
-        scheduleReviewReminder();
-
-        // Stop the in-flight clip cleanly (no lock — becomes unlocked)
-        cameraRef.current?.stopRecording();
-
-        Notifications.scheduleNotificationAsync({
-          content: {
-            title: "Dashcam clips saved",
-            body: "Your last 5 clips are saved for review. Tap to lock the ones you want to keep.",
-            data: { type: "dashcam_background_save" },
-          },
-          trigger: null,
-        }).catch(() => {});
+        if (interruptionTimerRef.current) clearTimeout(interruptionTimerRef.current);
+        interruptionTimerRef.current = null;
+        void preserveAndStopCurrent();
+      } else if (nextState === "inactive") {
+        if (!isRecordingRef.current || interruptionTimerRef.current) return;
+        interruptionTimerRef.current = setTimeout(() => {
+          interruptionTimerRef.current = null;
+          if (appStateRef.current !== "active") void preserveAndStopCurrent();
+        }, 1_500);
       } else if (nextState === "active") {
+        if (interruptionTimerRef.current) clearTimeout(interruptionTimerRef.current);
+        interruptionTimerRef.current = null;
+        lifecycleSavePendingRef.current = false;
         if (!backgroundedWhileRecordingRef.current) return;
         backgroundedWhileRecordingRef.current = false;
         setRecordingEpoch((e) => e + 1);
       }
     });
 
-    return () => subscription.remove();
+    return () => {
+      subscription.remove();
+      if (interruptionTimerRef.current) clearTimeout(interruptionTimerRef.current);
+    };
+  // The listener is intentionally registered once. It reads all mutable
+  // recording/segment state from refs, and the callbacks are safe to close over
+  // because they are initialized before the effect executes after commit.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const storageUsedBytes = useMemo(
@@ -686,10 +771,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     const toDelete = sorted.slice(0, rolling.length - UNLOCKED_ROLLING_WINDOW);
     const deleteIds = new Set(toDelete.map((s) => s.id));
 
-    for (const s of toDelete) {
-      FileSystem.deleteAsync(s.uri, { idempotent: true }).catch(() => {});
-    }
-
     return segs.filter((s) => !deleteIds.has(s.id));
   }, []);
 
@@ -704,10 +785,6 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     const sorted   = [...review].sort((a, b) => a.startedAt - b.startedAt);
     const toDelete = sorted.slice(0, review.length - MAX_REVIEW_CLIPS);
     const deleteIds = new Set(toDelete.map((s) => s.id));
-
-    for (const s of toDelete) {
-      FileSystem.deleteAsync(s.uri, { idempotent: true }).catch(() => {});
-    }
 
     return segs.filter((s) => !deleteIds.has(s.id));
   }, []);
@@ -1494,30 +1571,34 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           // Determine whether recording was stopped (trip end)
           const voiceHandoff = voiceHandoffPendingRef.current;
           const tripEnded = !isRecordingRef.current && !voiceHandoff;
+          const lifecycleSave = lifecycleSavePendingRef.current;
+          const previous = segmentsRef.current;
+          let next = applyRollingWindow([...previous, segment]);
 
-          setSegments((prev) => {
-            // Apply the rolling window (max 5 unlocked, not savedForReview, not locked)
-            const withNew = applyRollingWindow([...prev, segment]);
+          // Trip-end and OS-interruption completions both preserve the newest
+          // five local clips for review. This includes the segment that just
+          // finished, rather than only the clips that existed before stopping.
+          if (tripEnded || lifecycleSave) {
+            const rolling = next
+              .filter((s) => !s.locked && !s.savedForReview)
+              .sort((a, b) => b.startedAt - a.startedAt)
+              .slice(0, UNLOCKED_ROLLING_WINDOW);
+            const reviewIds = new Set(rolling.map((s) => s.id));
+            next = applyReviewCap(next.map((s) =>
+              reviewIds.has(s.id) ? { ...s, savedForReview: true } : s
+            ));
+          }
 
-            // If the trip just ended, mark last 5 unlocked clips as savedForReview
-            // then cap the total review pool to MAX_REVIEW_CLIPS (10 = 2 trips).
-            if (tripEnded) {
-              const rolling = withNew
-                .filter((s) => !s.locked && !s.savedForReview)
-                .sort((a, b) => b.startedAt - a.startedAt)
-                .slice(0, UNLOCKED_ROLLING_WINDOW);
-              const reviewIds = new Set(rolling.map((s) => s.id));
-              const withReview = withNew.map((s) =>
-                reviewIds.has(s.id) ? { ...s, savedForReview: true } : s
-              );
-              const capped = applyReviewCap(withReview);
-              segmentsRef.current = capped;
-              return capped;
-            }
-
-            segmentsRef.current = withNew;
-            return withNew;
-          });
+          // Durability boundary: the file is already in documentDirectory.
+          // Persist the complete replacement index before exposing it in state
+          // or deleting clips evicted from the rolling window.
+          await AsyncStorage.setItem(capturedAsyncKey, JSON.stringify(next));
+          segmentsRef.current = next;
+          setSegments(next);
+          const retainedIds = new Set(next.map((s) => s.id));
+          previous
+            .filter((s) => !retainedIds.has(s.id))
+            .forEach((s) => FileSystem.deleteAsync(s.uri, { idempotent: true }).catch(() => {}));
 
           // Queue locked clips for upload
           if (lockReason) {
@@ -1531,13 +1612,13 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
           // re-appear on the next cold start).
           if (tripEnded) {
             pendingTripEndRef.current = false; // safety timer no longer needed
-            AsyncStorage.setItem(
-              capturedAsyncKey,
-              JSON.stringify(segmentsRef.current),
-            ).catch(() => {});
             setPendingTripReview(true);
             scheduleReviewReminder();
             setIsRecording(false);
+          } else if (lifecycleSave) {
+            lifecycleSavePendingRef.current = false;
+            setPendingTripReview(true);
+            scheduleReviewReminder();
           } else if (voiceHandoff) {
             // The segment was saved as an ordinary rolling clip. Do not mark
             // the trip ended or create a review reminder for this short pause.
@@ -1572,7 +1653,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
         }
       }
     },
-    [applyRollingWindow, finishVoiceHandoffPause, processUploadQueue, scheduleReviewReminder]
+    [applyReviewCap, applyRollingWindow, finishVoiceHandoffPause, processUploadQueue, scheduleReviewReminder]
   );
 
   const deleteSegment = useCallback(

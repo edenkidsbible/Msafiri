@@ -309,7 +309,9 @@ describe("DashcamOverlay.tsx — recording loop calls onSegmentStart before reco
   assert.ok(loopIdx !== -1, "recording loop function must be present in DashcamOverlay.tsx");
 
   // Grab the loop body — up to the closing of the while block (generous slice).
-  const loopSlice = overlaySrc.slice(loopIdx, loopIdx + 3000);
+  // Keep this structural check tolerant of explanatory comments being added
+  // before the loop body.
+  const loopSlice = overlaySrc.slice(loopIdx, loopIdx + 7000);
 
   it("onSegmentStart() call is present in the recording loop", () => {
     assert.ok(
@@ -327,7 +329,7 @@ describe("DashcamOverlay.tsx — recording loop calls onSegmentStart before reco
 
   it("onSegmentStart() appears before recordAsync( in the loop source", () => {
     const startPos  = loopSlice.indexOf("onSegmentStart()");
-    const recordPos = loopSlice.indexOf("recordAsync(");
+    const recordPos = loopSlice.indexOf("const result = await localCameraRef.current.recordAsync(");
     assert.ok(startPos !== -1,  "onSegmentStart() must exist in loop");
     assert.ok(recordPos !== -1, "recordAsync( must exist in loop");
     assert.ok(
@@ -338,7 +340,7 @@ describe("DashcamOverlay.tsx — recording loop calls onSegmentStart before reco
   });
 
   it("onSegmentComplete( is called with the result AFTER recordAsync resolves", () => {
-    const recordPos   = loopSlice.indexOf("recordAsync(");
+    const recordPos   = loopSlice.indexOf("const result = await localCameraRef.current.recordAsync(");
     const completePos = loopSlice.indexOf("onSegmentComplete(");
     assert.ok(completePos !== -1, "onSegmentComplete( must be called in the loop");
     assert.ok(
@@ -349,7 +351,7 @@ describe("DashcamOverlay.tsx — recording loop calls onSegmentStart before reco
 
   it("the ordering is: onSegmentStart → recordAsync → onSegmentComplete", () => {
     const startPos    = loopSlice.indexOf("onSegmentStart()");
-    const recordPos   = loopSlice.indexOf("recordAsync(");
+    const recordPos   = loopSlice.indexOf("const result = await localCameraRef.current.recordAsync(");
     const completePos = loopSlice.indexOf("onSegmentComplete(");
     assert.ok(
       startPos < recordPos && recordPos < completePos,

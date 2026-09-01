@@ -106,3 +106,4 @@
 - [Road Channels privacy boundaries](road-channels-privacy-boundaries.md) — aggregate presence only; serialize one-channel leases; cap signed audio URLs at retention time; voice reports enter pending review.
 - [Road Channels nearby discovery](road-channels-nearby-discovery.md) — 5 km channels are listen-only unless GPS is on-corridor; report targeting stays separate; bucket live GPS/heading.
 - [Push campaign singleton claims](push-campaign-singleton-claims.md) — time-window guards must atomically claim campaigns across production workers; dedupe recipients by vendor/device identity.
+- [Dashcam force-close durability](dashcam-force-close-durability.md) — commit completed-clip indexes before eviction; recover orphaned document-directory MP4s on launch.
