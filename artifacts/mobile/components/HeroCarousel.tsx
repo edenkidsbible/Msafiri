@@ -220,7 +220,6 @@ export function HeroCarousel({ activeVehicle }: Props) {
   }, []);
 
   const curSlide = slides[curIdx];
-  const watermarkIcon = curSlide.icon;
   const boldIcon = curSlide.icon.replace(/-outline$/, "") as React.ComponentProps<typeof Ionicons>["name"];
 
   return (
@@ -243,12 +242,51 @@ export function HeroCarousel({ activeVehicle }: Props) {
         >
           <View pointerEvents="none" style={styles.artHaloInnerRing} />
 
-          <Ionicons
-            name={boldIcon}
-            size={Math.round(artworkSize * 0.43)}
-            color="#FFFFFF"
-            style={styles.artWatermark}
-          />
+          <View
+            pointerEvents="none"
+            style={[
+              styles.artPhoneFrame,
+              {
+                width: Math.round(artworkSize * 0.48),
+                height: Math.round(artworkSize * 0.72),
+                borderRadius: Math.round(artworkSize * 0.12),
+                top: Math.round(artworkSize * 0.14),
+              },
+            ]}
+          >
+            <View
+              pointerEvents="none"
+              style={[
+                styles.artPhoneSpeaker,
+                { width: Math.round(artworkSize * 0.17) },
+              ]}
+            />
+            <View
+              pointerEvents="none"
+              style={[
+                styles.artPhoneIcon,
+                {
+                  top: Math.round(artworkSize * 0.13),
+                  width: Math.round(artworkSize * 0.40),
+                  height: Math.round(artworkSize * 0.40),
+                },
+              ]}
+            >
+              <Ionicons
+                name={boldIcon}
+                size={Math.round(artworkSize * 0.30)}
+                color="#FFFFFF"
+                style={styles.artWatermark}
+              />
+            </View>
+            <View
+              pointerEvents="none"
+              style={[
+                styles.artPhoneHomeIndicator,
+                { width: Math.round(artworkSize * 0.15) },
+              ]}
+            />
+          </View>
         </View>
 
         <Animated.View
@@ -328,6 +366,33 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 2,
     borderColor: "#FFFFFF2E",
+  },
+  artPhoneFrame: {
+    position: "absolute",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#FFFFFF52",
+    backgroundColor: "#FFFFFF0A",
+    overflow: "hidden",
+  },
+  artPhoneSpeaker: {
+    position: "absolute",
+    top: 7,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#FFFFFF40",
+  },
+  artPhoneIcon: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  artPhoneHomeIndicator: {
+    position: "absolute",
+    bottom: 7,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#FFFFFF40",
   },
   artWatermark: { opacity: 0.82 },
   artInnerPeople: {
