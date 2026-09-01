@@ -39,6 +39,8 @@ import {
 
 const MAX_SECONDS = 15;
 const MIN_USEFUL_SECONDS = 2;
+const ON_ROAD_DISTANCE_M = 250;
+const VOICE_CONTENT_TYPE = "audio/mp4";
 
 export interface RoadChannelsVoiceReporterProps {
   /** Pass the driver's current position when available. */
@@ -168,6 +170,9 @@ export default function RoadChannelsVoiceReporter({
   const discoveryLat = location ? Math.round(location.latitude * 200) / 200 : null;
   const discoveryLng = location ? Math.round(location.longitude * 200) / 200 : null;
   const discoveryHeading = heading == null ? null : Math.round(heading / 30) * 30 % 360;
+  const reportingChannel = availableChannels.find(
+    (item) => item.distanceM != null && item.distanceM <= ON_ROAD_DISTANCE_M,
+  ) ?? null;
 
   const clearStopTimer = () => {
     if (stopTimer.current) clearTimeout(stopTimer.current);
@@ -419,22 +424,10 @@ export default function RoadChannelsVoiceReporter({
         return;
       }
       reportLocationRef.current = resolvedLocation;
-      const activeChannel = channelRef.current;
-      // When a live channel exists, tapping the microphone is also an explicit
-      // channel action. Join before recording so the staged upload cannot
-      // later fail its active-member check. Without a channel, this remains a
-      // normal community-report draft and no presence row is created.
-      if (activeChannel && !listening) {
-        setMessage(`Joining ${activeChannel.name}…`);
-        await updateRoadChannelPresence({
-          deviceId,
-          location: resolvedLocation,
-          channelId: activeChannel.id,
-        });
-        if (cancelled()) return void await abortCancelledStart();
-        setListening(true);
-        setMessage(null);
-      }
+      // Selecting a nearby channel is a listening choice only. The report
+      // target is resolved independently from GPS distance during upload, so
+      // recording never silently joins or publishes onto a road kilometres
+      // away from the driver.
       const permission = Platform.OS === "android"
         ? {
             granted: await requestAndroidMicrophonePermission(),
@@ -497,16 +490,16 @@ export default function RoadChannelsVoiceReporter({
       const context = {
         deviceId,
         location: reportLocationRef.current ?? location ?? undefined,
-        channelId: channel?.id,
+        channelId: reportingChannel?.id,
         roadName,
       };
       const fileInfo = await getInfoAsync(recordedUri);
       if (!fileInfo.exists || !fileInfo.size) throw new Error("The voice recording could not be read.");
       const request = await requestVoiceUpload(context, {
-        contentType: "audio/mp4",
+        contentType: VOICE_CONTENT_TYPE,
         sizeBytes: fileInfo.size,
       });
-      await uploadVoiceRecording(request, recordedUri);
+      await uploadVoiceRecording(request, recordedUri, VOICE_CONTENT_TYPE);
       const result = await interpretVoiceReport(request.voiceReportId, context);
       setInterpretation(result);
       setMessage(null);
@@ -532,10 +525,10 @@ export default function RoadChannelsVoiceReporter({
       const result = await confirmVoiceReport(interpretation, {
         deviceId,
         location: reportLocationRef.current ?? location ?? undefined,
-        channelId: channel?.id,
+        channelId: reportingChannel?.id,
       }, { selectedCategory: category, communityGuidelinesAccepted: true });
       await AsyncStorage.setItem(`${GUIDELINES_KEY}:${deviceId ?? "anonymous"}`, "accepted");
-        setMessage(channel ? "Report shared with Road Channels." : "Report shared with the Msafiri community.");
+        setMessage(reportingChannel ? `Report shared with ${reportingChannel.name}.` : "Report shared for your current location.");
       onConfirmed?.(result.reportId, interpretation);
       setInterpretation(null);
       setRecordedUri(null);
@@ -587,9 +580,11 @@ export default function RoadChannelsVoiceReporter({
             ? "Start an active drive to listen or report."
             : discoveryStatus === "loading"
            ? "Finding your road…"
-           : channel?.name
-             ? `Sharing with ${channel.name}`
-             : "No live Road Channel nearby. You can still report an incident for this road."}
+            : reportingChannel?.name
+              ? `Reports use ${reportingChannel.road ?? reportingChannel.name} at your current location.`
+              : channel?.name
+                ? `Listening to ${channel.name}. Reports use your current location.`
+                : "No live Road Channel nearby. You can still report an incident for this road."}
       </Text>
        {activeDrive && channel ? (
          <View style={[styles.listenCard, { backgroundColor: c.secondary, borderColor: c.border }]}>
@@ -648,7 +643,7 @@ export default function RoadChannelsVoiceReporter({
          <View style={styles.nearbySection}>
            <Text style={[styles.categoryHeading, { color: c.foreground }]}>Nearby Road Channels</Text>
            <Text style={[styles.categoryHint, { color: c.mutedForeground }]}>
-              Choose the live road channel you are joining or reporting on.
+              Join nearby channels to listen. Reports always use the road or location you are currently driving on.
            </Text>
            <View style={styles.categoryGrid}>
              {availableChannels.map((item) => (
@@ -665,9 +660,9 @@ export default function RoadChannelsVoiceReporter({
                  <Text style={[styles.categoryLabel, { color: channel?.id === item.id ? c.primary : c.foreground }]}>
                     {item.road ?? item.name}
                     {item.distanceM != null
-                      ? item.distanceM < 150
-                        ? " · On this road"
-                        : ` · ${(item.distanceM / 1000).toFixed(1)} km`
+                      ? item.distanceM <= ON_ROAD_DISTANCE_M
+                        ? " · On this road · Report + listen"
+                        : ` · ${(item.distanceM / 1000).toFixed(1)} km · Listen only`
                       : ""}
                  </Text>
                </TouchableOpacity>

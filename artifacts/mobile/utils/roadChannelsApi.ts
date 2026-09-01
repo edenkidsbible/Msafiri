@@ -38,6 +38,7 @@ export interface VoiceUploadRequest {
   uploadUrl: string;
   method?: "PUT" | "POST";
   headers?: Record<string, string>;
+  contentType?: string;
 }
 
 export interface VoiceInterpretation {
@@ -151,7 +152,11 @@ export function requestVoiceUpload(
  * This is deliberately separate from interpretation and confirmation: an upload
  * is private staging data and never creates a published road report.
  */
-export async function uploadVoiceRecording(request: VoiceUploadRequest, uri: string): Promise<void> {
+export async function uploadVoiceRecording(
+  request: VoiceUploadRequest,
+  uri: string,
+  contentType = "audio/mp4",
+): Promise<void> {
   const uploadUrl = request.uploadUrl.startsWith("http")
     ? request.uploadUrl
     : `${API_BASE}${request.uploadUrl}`;
@@ -170,7 +175,7 @@ export async function uploadVoiceRecording(request: VoiceUploadRequest, uri: str
   const response = await fetch(uploadUrl, {
     method,
     headers: {
-      "Content-Type": "audio/m4a",
+      "Content-Type": request.contentType ?? contentType,
       ...request.headers,
     },
     body,

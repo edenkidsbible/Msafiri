@@ -18,6 +18,8 @@ import {
 const router = Router();
 const MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 const PRESENCE_TTL_MS = 5 * 60 * 1000;
+const LISTEN_DISTANCE_M = 5_000;
+const ON_ROAD_DISTANCE_M = 250;
 const ALLOWED_AUDIO_TYPES = new Set(["audio/mpeg", "audio/mp4", "audio/m4a", "audio/wav", "audio/webm", "audio/ogg"]);
 const ALLOWED_REPORT_TYPES = new Set(Object.keys(TTL_SECONDS));
 const TERMS_VERSION = "road-channels-pilot-v1";
@@ -123,6 +125,20 @@ function voiceKey(deviceId: string, id: string): string {
   return `road-channels/${encodeURIComponent(deviceId)}/${id}.audio`;
 }
 
+function normalizedAudioType(value: string | undefined): string {
+  const type = value?.toLowerCase().split(";")[0]?.trim() ?? "";
+  return type === "audio/x-m4a" ? "audio/m4a" : type;
+}
+
+function isWithinChannelDistance(channel: string, lat: number, lng: number, distanceM: number): boolean {
+  return nearbyPilotCorridors(lat, lng, distanceM)
+    .some(({ corridor }) => corridor.id === channel);
+}
+
+function isOnChannel(channel: string, lat: number, lng: number): boolean {
+  return isWithinChannelDistance(channel, lat, lng, ON_ROAD_DISTANCE_M);
+}
+
 router.get("/road-channels", async (_req, res) => {
   if (!await requireEnabled(res)) return;
   res.json({ enabled: true, channels: PILOT_CORRIDORS.map((corridor) => corridor.id) });
@@ -189,6 +205,9 @@ router.post("/road-channels/presence", async (req: Request, res: Response) => {
   if (!channel) return res.status(404).json({ error: "Unsupported road channel" });
   if (!validDevice(deviceId) || !validCoordinates(lat, lng)) return res.status(400).json({ error: "Valid deviceId and location required" });
   if (!permit(deviceId, "presence", 20) || await blocked(deviceId)) return res.status(403).json({ error: "Device is not permitted to update presence" });
+  if (!isWithinChannelDistance(channel, lat, lng as number, LISTEN_DISTANCE_M)) {
+    return res.status(403).json({ error: "This Road Channel is not within 5 km of your current location" });
+  }
   await refreshPresence(channel, deviceId, lat, lng as number);
   return res.status(204).end();
 });
@@ -201,6 +220,9 @@ router.post("/road-channels/:channel/presence", async (req: Request, res: Respon
   if (!validDevice(deviceId) || !validCoordinates(lat, lng)) return res.status(400).json({ error: "Valid deviceId, lat and lng required" });
   if (!permit(deviceId, "presence", 20) || await blocked(deviceId)) return res.status(403).json({ error: "Device is not permitted to update presence" });
   const latitude = lat as number, longitude = lng as number;
+  if (!isWithinChannelDistance(channel, latitude, longitude, LISTEN_DISTANCE_M)) {
+    return res.status(403).json({ error: "This Road Channel is not within 5 km of your current location" });
+  }
   await refreshPresence(channel, deviceId, latitude, longitude);
   return res.status(204).end();
 });
@@ -311,7 +333,7 @@ router.post("/road-channels/:channel/updates/:updateId/report", async (req: Requ
   return res.status(201).json({ reported: true });
 });
 
-async function createVoiceUpload(req: Request, res: Response, channel: string, requiresMembership: boolean) {
+async function createVoiceUpload(req: Request, res: Response, channel: string, requiresOnRoad: boolean) {
   const { deviceId, contentType, sizeBytes, lat, lng } = req.body as Record<string, unknown>;
   const rawRoadName = req.body?.roadName;
   const roadName = typeof rawRoadName === "string" ? rawRoadName.trim().slice(0, 180) || null : null;
@@ -321,14 +343,26 @@ async function createVoiceUpload(req: Request, res: Response, channel: string, r
   }
   if (!isR2Configured()) return res.status(503).json({ error: "Voice uploads are temporarily unavailable" });
   if (!permit(deviceId, "voice-upload", 5, 60 * 60_000) || await blocked(deviceId)) return res.status(403).json({ error: "Device is not permitted to upload voice reports" });
-  if (requiresMembership && !await activeMember(channel, deviceId)) return res.status(403).json({ error: "Join this active road channel before contributing" });
+  if (requiresOnRoad && !isOnChannel(channel, lat as number, lng as number)) {
+    return res.status(403).json({
+      error: "You can listen to this nearby channel, but reports must use the road or location you are currently driving on",
+    });
+  }
   const id = crypto.randomUUID(), objectKey = voiceKey(deviceId, id);
   await db.insert(roadChannelVoiceReportsTable).values({
     id, channel, roadName, deviceId, objectKey, contentType, sizeBytes: sizeBytes as number,
     lat: lat as number, lng: lng as number, expiresAt: new Date(Date.now() + AUDIO_RETENTION_MS),
   });
   const uploadUrl = await getPresignedUploadUrl(objectKey, contentType);
-  return res.status(201).json({ voiceReportId: id, uploadUrl, expiresInSeconds: 900, objectKey });
+  return res.status(201).json({
+    voiceReportId: id,
+    uploadUrl,
+    method: "PUT",
+    contentType,
+    headers: { "Content-Type": contentType },
+    expiresInSeconds: 900,
+    objectKey,
+  });
 }
 
 // A driver may stage a community report without an existing live channel.
@@ -354,7 +388,7 @@ router.post("/road-channels/voice/:id/interpret", async (req, res) => {
   if (voice.deviceId !== deviceId) return res.status(403).json({ error: "Voice report belongs to another device" });
   if (voice.status === "confirmed") return res.status(409).json({ error: "Voice report already confirmed" });
   const object = await headObject(voice.objectKey);
-  if (!object || object.size < 1 || object.size > MAX_AUDIO_BYTES || !object.contentType || !ALLOWED_AUDIO_TYPES.has(object.contentType)) {
+  if (!object || object.size < 1 || object.size > MAX_AUDIO_BYTES || !ALLOWED_AUDIO_TYPES.has(normalizedAudioType(object.contentType))) {
     return res.status(400).json({ error: "Uploaded audio is missing or fails size/type validation" });
   }
   try {
@@ -414,8 +448,11 @@ router.post("/road-channels/voice/:id/confirm", async (req, res) => {
   const [voice] = await db.select().from(roadChannelVoiceReportsTable).where(eq(roadChannelVoiceReportsTable.id, req.params.id));
   if (!voice) return res.status(404).json({ error: "Voice report not found" });
   if (voice.deviceId !== deviceId) return res.status(403).json({ error: "Voice report belongs to another device" });
-  if (voice.channel !== COMMUNITY_CHANNEL && !await activeMember(voice.channel, deviceId)) {
-    return res.status(403).json({ error: "An active joined channel is required" });
+  if (voice.channel !== COMMUNITY_CHANNEL && voice.lat != null && voice.lng != null
+      && !isOnChannel(voice.channel, voice.lat, voice.lng)) {
+    return res.status(403).json({
+      error: "This report is not on the selected road channel. Re-record it for your current location.",
+    });
   }
   if (communityGuidelinesAccepted !== true) return res.status(412).json({ error: "Accept the Road Channels community guidelines before contributing" });
   if (voice.moderationStatus === "rejected") return res.status(409).json({ error: "This recording cannot be shared. Please record a factual road update." });
