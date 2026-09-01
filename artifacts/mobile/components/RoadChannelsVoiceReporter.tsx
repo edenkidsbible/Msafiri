@@ -520,7 +520,11 @@ export default function RoadChannelsVoiceReporter({
 
   const isRecording = recording.isRecording;
   const actionLabel = isRecording ? "Tap to stop" : recordedUri ? "Understand report" : "Tap and speak";
-  const canReport = activeDrive && discoveryStatus !== "loading" && !!deviceId && !!location;
+  // Voice reports are useful even when no live Road Channel is nearby. Keep
+  // the action available throughout an active drive; recording itself will
+  // explain a missing GPS/device prerequisite instead of making the mic look
+  // mysteriously disabled while discovery or permissions are still settling.
+  const canReport = activeDrive;
 
   return (
     <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
