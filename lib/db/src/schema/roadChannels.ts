@@ -31,6 +31,8 @@ export const roadChannelUpdatesTable = pgTable("road_channel_updates", {
 export const roadChannelVoiceReportsTable = pgTable("road_channel_voice_reports", {
   id: uuid("id").primaryKey().defaultRandom(),
   channel: text("channel").notNull(),
+  /** The driver's road context; null for older channel-only drafts. */
+  roadName: text("road_name"),
   deviceId: text("device_id").notNull(),
   objectKey: text("object_key").notNull().unique(),
   contentType: text("content_type").notNull(),

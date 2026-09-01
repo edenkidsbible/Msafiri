@@ -22,6 +22,7 @@ const ALLOWED_AUDIO_TYPES = new Set(["audio/mpeg", "audio/mp4", "audio/m4a", "au
 const ALLOWED_REPORT_TYPES = new Set(Object.keys(TTL_SECONDS));
 const TERMS_VERSION = "road-channels-pilot-v1";
 const AUDIO_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const COMMUNITY_CHANNEL = "community";
 const CATEGORY_TO_TYPE: Record<string, string> = {
   traffic: "traffic",
   accident: "accident",
@@ -40,7 +41,7 @@ function channelFor(value: unknown): string | null {
   return resolvePilotCorridor(value)?.id ?? null;
 }
 function channelName(channel: string): string {
-  return resolvePilotCorridor(channel)?.name ?? channel;
+  return resolvePilotCorridor(channel)?.name ?? (channel === COMMUNITY_CHANNEL ? "Community road report" : channel);
 }
 function validDevice(value: unknown): value is string {
   return typeof value === "string" && value.length >= 8 && value.length <= 200;
@@ -310,25 +311,37 @@ router.post("/road-channels/:channel/updates/:updateId/report", async (req: Requ
   return res.status(201).json({ reported: true });
 });
 
-router.post("/road-channels/:channel/voice/upload-url", async (req, res) => {
-  if (!await requireEnabled(res)) return;
-  const channel = channelFor(req.params.channel);
+async function createVoiceUpload(req: Request, res: Response, channel: string, requiresMembership: boolean) {
   const { deviceId, contentType, sizeBytes, lat, lng } = req.body as Record<string, unknown>;
-  if (!channel) return res.status(404).json({ error: "Unsupported road channel" });
+  const rawRoadName = req.body?.roadName;
+  const roadName = typeof rawRoadName === "string" ? rawRoadName.trim().slice(0, 180) || null : null;
   if (!validDevice(deviceId) || typeof contentType !== "string" || !ALLOWED_AUDIO_TYPES.has(contentType) ||
       !Number.isInteger(sizeBytes) || (sizeBytes as number) < 1 || (sizeBytes as number) > MAX_AUDIO_BYTES || !validCoordinates(lat, lng)) {
     return res.status(400).json({ error: "Valid deviceId, Kenyan coordinates, supported audio type and audio size (max 10MB) required" });
   }
   if (!isR2Configured()) return res.status(503).json({ error: "Voice uploads are temporarily unavailable" });
   if (!permit(deviceId, "voice-upload", 5, 60 * 60_000) || await blocked(deviceId)) return res.status(403).json({ error: "Device is not permitted to upload voice reports" });
-  if (!await activeMember(channel, deviceId)) return res.status(403).json({ error: "Join this active road channel before contributing" });
+  if (requiresMembership && !await activeMember(channel, deviceId)) return res.status(403).json({ error: "Join this active road channel before contributing" });
   const id = crypto.randomUUID(), objectKey = voiceKey(deviceId, id);
   await db.insert(roadChannelVoiceReportsTable).values({
-    id, channel, deviceId, objectKey, contentType, sizeBytes: sizeBytes as number,
+    id, channel, roadName, deviceId, objectKey, contentType, sizeBytes: sizeBytes as number,
     lat: lat as number, lng: lng as number, expiresAt: new Date(Date.now() + AUDIO_RETENTION_MS),
   });
   const uploadUrl = await getPresignedUploadUrl(objectKey, contentType);
   return res.status(201).json({ voiceReportId: id, uploadUrl, expiresInSeconds: 900, objectKey });
+}
+
+// A driver may stage a community report without an existing live channel.
+router.post("/road-channels/voice/upload-url", async (req, res) => {
+  if (!await requireEnabled(res)) return;
+  return createVoiceUpload(req, res, COMMUNITY_CHANNEL, false);
+});
+
+router.post("/road-channels/:channel/voice/upload-url", async (req, res) => {
+  if (!await requireEnabled(res)) return;
+  const channel = channelFor(req.params.channel);
+  if (!channel) return res.status(404).json({ error: "Unsupported road channel" });
+  return createVoiceUpload(req, res, channel, true);
 });
 
 router.post("/road-channels/voice/:id/interpret", async (req, res) => {
@@ -376,7 +389,7 @@ router.post("/road-channels/voice/:id/interpret", async (req, res) => {
       transcript,
       proposedType,
       summary,
-      road: channelName(voice.channel),
+      road: voice.roadName ?? channelName(voice.channel),
       speedLimit: proposedSpeedLimit,
       cameraType: proposedCameraType,
       moderationStatus,
@@ -401,7 +414,9 @@ router.post("/road-channels/voice/:id/confirm", async (req, res) => {
   const [voice] = await db.select().from(roadChannelVoiceReportsTable).where(eq(roadChannelVoiceReportsTable.id, req.params.id));
   if (!voice) return res.status(404).json({ error: "Voice report not found" });
   if (voice.deviceId !== deviceId) return res.status(403).json({ error: "Voice report belongs to another device" });
-  if (!await activeMember(voice.channel, deviceId)) return res.status(403).json({ error: "An active joined channel is required" });
+  if (voice.channel !== COMMUNITY_CHANNEL && !await activeMember(voice.channel, deviceId)) {
+    return res.status(403).json({ error: "An active joined channel is required" });
+  }
   if (communityGuidelinesAccepted !== true) return res.status(412).json({ error: "Accept the Road Channels community guidelines before contributing" });
   if (voice.moderationStatus === "rejected") return res.status(409).json({ error: "This recording cannot be shared. Please record a factual road update." });
   if (voice.status !== "interpreted" || voice.proposedType !== type || voice.lat == null || voice.lng == null) return res.status(409).json({ error: "Interpret this report and explicitly confirm its proposed type first" });
@@ -415,7 +430,7 @@ router.post("/road-channels/voice/:id/confirm", async (req, res) => {
     lat: voice.lat,
     lng: voice.lng,
     deviceId,
-    roadName: channelName(voice.channel),
+    roadName: voice.roadName ?? channelName(voice.channel),
     expiresAt: ttl ? new Date(Date.now() + ttl * 1000) : null,
     observationContext: "on_location",
     observedAt: new Date(),
@@ -432,7 +447,11 @@ router.post("/road-channels/voice/:id/confirm", async (req, res) => {
     termsVersion: TERMS_VERSION,
     termsAcceptedAt: new Date(),
   }).where(eq(roadChannelVoiceReportsTable.id, voice.id));
-  await db.insert(roadChannelUpdatesTable).values({ channel: voice.channel, deviceId, kind: "voice_report_confirmed", reportId: report.id, voiceReportId: voice.id });
+  if (voice.channel !== COMMUNITY_CHANNEL) {
+    await db.insert(roadChannelUpdatesTable).values({
+      channel: voice.channel, deviceId, kind: "voice_report_confirmed", reportId: report.id, voiceReportId: voice.id,
+    });
+  }
   return res.status(201).json({ reportId: report.id, status: report.status });
 });
 

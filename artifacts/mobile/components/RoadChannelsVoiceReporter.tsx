@@ -70,8 +70,9 @@ function timeLabel(milliseconds: number): string {
 }
 
 /**
- * A standalone, confirmation-gated Road Channels voice reporting control.
- * It purposefully owns no shared app state, so it can be placed in any screen.
+ * A standalone, confirmation-gated voice reporting control. It can publish
+ * through a live Road Channel when one is nearby, or stage a normal community
+ * report when the current road has no channel yet.
  */
 export default function RoadChannelsVoiceReporter({
   location = null,
@@ -352,8 +353,8 @@ export default function RoadChannelsVoiceReporter({
       return;
     }
     const activeChannel = channelRef.current;
-    if (!activeChannel || !deviceId || !location) {
-      setMessage("A nearby Road Channel and current location are required before recording.");
+    if (!deviceId || !location) {
+      setMessage("Current location is required before recording.");
       return;
     }
     setMessage(null);
@@ -371,10 +372,11 @@ export default function RoadChannelsVoiceReporter({
       await resumeDashcamIfNeeded().catch(() => {});
     };
     try {
-      // Tapping the microphone is an explicit channel action. Join before
-      // recording so the staged upload cannot later fail its active-member
-      // check after the driver has already spoken.
-      if (!listening) {
+      // When a live channel exists, tapping the microphone is also an explicit
+      // channel action. Join before recording so the staged upload cannot
+      // later fail its active-member check. Without a channel, this remains a
+      // normal community-report draft and no presence row is created.
+      if (activeChannel && !listening) {
         setMessage(`Joining ${activeChannel.name}…`);
         await updateRoadChannelPresence({
           deviceId,
@@ -444,7 +446,12 @@ export default function RoadChannelsVoiceReporter({
     setBusy(true);
     setMessage("Listening to your report…");
     try {
-      const context = { deviceId, location: location ?? undefined, channelId: channel?.id };
+      const context = {
+        deviceId,
+        location: location ?? undefined,
+        channelId: channel?.id,
+        roadName,
+      };
       const fileInfo = await getInfoAsync(recordedUri);
       if (!fileInfo.exists || !fileInfo.size) throw new Error("The voice recording could not be read.");
       const request = await requestVoiceUpload(context, {
@@ -478,7 +485,7 @@ export default function RoadChannelsVoiceReporter({
         deviceId, location: location ?? undefined, channelId: channel?.id,
       }, { selectedCategory: category, communityGuidelinesAccepted: true });
       await AsyncStorage.setItem(`${GUIDELINES_KEY}:${deviceId ?? "anonymous"}`, "accepted");
-      setMessage("Report shared with Road Channels.");
+        setMessage(channel ? "Report shared with Road Channels." : "Report shared with the Msafiri community.");
       onConfirmed?.(result.reportId, interpretation);
       setInterpretation(null);
       setRecordedUri(null);
@@ -513,7 +520,7 @@ export default function RoadChannelsVoiceReporter({
 
   const isRecording = recording.isRecording;
   const actionLabel = isRecording ? "Tap to stop" : recordedUri ? "Understand report" : "Tap and speak";
-  const canReport = activeDrive && discoveryStatus === "available";
+  const canReport = activeDrive && discoveryStatus !== "loading" && !!deviceId && !!location;
 
   return (
     <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
@@ -526,7 +533,7 @@ export default function RoadChannelsVoiceReporter({
            ? "Finding your road…"
            : channel?.name
              ? `Sharing with ${channel.name}`
-             : "This road has no Road Channel yet. Check back later."}
+             : "No live Road Channel nearby. You can still report an incident for this road."}
       </Text>
        {activeDrive && channel ? (
          <View style={[styles.listenCard, { backgroundColor: c.secondary, borderColor: c.border }]}>
@@ -585,7 +592,7 @@ export default function RoadChannelsVoiceReporter({
          <View style={styles.nearbySection}>
            <Text style={[styles.categoryHeading, { color: c.foreground }]}>Nearby Road Channels</Text>
            <Text style={[styles.categoryHint, { color: c.mutedForeground }]}>
-             Choose the road you are joining or reporting on.
+              Choose the live road channel you are joining or reporting on.
            </Text>
            <View style={styles.categoryGrid}>
              {availableChannels.map((item) => (
@@ -615,7 +622,9 @@ export default function RoadChannelsVoiceReporter({
 
        <View style={styles.categorySection}>
          <Text style={[styles.categoryHeading, { color: c.foreground }]}>What are you reporting?</Text>
-         <Text style={[styles.categoryHint, { color: c.mutedForeground }]}>Choose a category to give listeners useful context.</Text>
+          <Text style={[styles.categoryHint, { color: c.mutedForeground }]}>
+            Choose a category so the community gets useful context.
+          </Text>
          <View style={styles.categoryGrid}>
            {ROAD_CHANNEL_CATEGORIES.map((item) => (
              <TouchableOpacity key={item} accessibilityRole="button" accessibilityState={{ selected: category === item }} onPress={() => setCategory(item)} style={[styles.categoryChip, { borderColor: category === item ? c.primary : c.border, backgroundColor: category === item ? c.primary + "18" : c.card }]}>

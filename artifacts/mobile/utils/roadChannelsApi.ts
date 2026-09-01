@@ -54,6 +54,7 @@ export interface VoiceReportContext {
   deviceId?: string;
   location?: RoadChannelLocation;
   channelId?: string;
+  roadName?: string | null;
 }
 
 export function discoverRoadChannels(
@@ -129,15 +130,18 @@ export function requestVoiceUpload(
   context: VoiceReportContext,
   metadata: { contentType: string; sizeBytes: number },
 ): Promise<VoiceUploadRequest> {
-  if (!context.channelId) throw new Error("No supported road channel is active.");
+  const endpoint = context.channelId
+    ? `/road-channels/${encodeURIComponent(context.channelId)}/voice/upload-url`
+    : "/road-channels/voice/upload-url";
   return apiPost<VoiceUploadRequest>(
-    `/road-channels/${encodeURIComponent(context.channelId)}/voice/upload-url`,
+    endpoint,
     {
       deviceId: context.deviceId,
       contentType: metadata.contentType,
       sizeBytes: metadata.sizeBytes,
       lat: context.location?.latitude,
       lng: context.location?.longitude,
+      roadName: context.roadName,
     },
   );
 }
