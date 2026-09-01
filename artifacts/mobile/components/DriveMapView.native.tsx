@@ -445,6 +445,10 @@ const DriveMapView = forwardRef(function DriveMapView(
   // the current value without recreating itself on every prop change.
   const mapDriftedRef = useRef(mapDrifted);
   useEffect(() => { mapDriftedRef.current = mapDrifted; }, [mapDrifted]);
+  // Active drive uses non-animated heading updates. Keep this in a ref so
+  // delayed preview animations cannot rotate the map after tripMode changes.
+  const tripModeRef = useRef(tripMode);
+  useEffect(() => { tripModeRef.current = tripMode; }, [tripMode]);
 
   // ── Camera-smoothing refs ─────────────────────────────────────────────────
   // These are camera-only; raw GPS values consumed by alerts/navigation are
@@ -526,20 +530,19 @@ const DriveMapView = forwardRef(function DriveMapView(
 
   // ── Heading-only interval — both iOS and Android ─────────────────────────
   //
-  // Heading is sent to the map exclusively through this interval on BOTH
-  // platforms.  The GPS position-follow effect (below) sends centre-only
-  // animateCamera calls so the two channels never combine in a single call.
+  // Heading is sent to the map exclusively through this interval. During an
+  // active drive it uses setCamera() with no interpolation, keeping the road
+  // ahead at the top without letting the native renderer spin the long way
+  // around 0°/360°. Route preview may still use a short smooth animation.
   //
   // Why separate?
   //   iOS   — MapKit crashes on combined pan+rotation at > 1 Hz.
-  //   Android — Google Maps interpolates combined pan+rotation from the
-  //             previous camera state; when the heading crosses 0°/360° the
-  //             renderer occasionally chooses the long path (spinning 330°
-  //             instead of 30°), causing the upside-down rotation the driver
-  //             sees.  Isolating heading in its own call eliminates that bug.
+  //   Android — Google Maps can choose the long interpolation path when a
+  //             heading animation crosses 0°/360°, causing an upside-down
+  //             rotation. Active drive therefore applies heading directly.
   //
   // Timing:
-  //   iOS     — 700 ms animation / 800 ms interval  (animation always ends
+  //   iOS     — 700 ms animation / 800 ms interval (animation always ends
   //              before the next fires; ~100 ms dead-time).
   //   Android — 500 ms animation / 650 ms interval  (faster for Google Maps'
   //              smoother compositor, keeps heading visually snappy).
@@ -547,6 +550,20 @@ const DriveMapView = forwardRef(function DriveMapView(
   // The interval self-gates via mapDriftedRef (suspended while drifted) and
   // camHeadingRef (no-ops until a smoothed heading is available).
   useEffect(() => {
+    if (tripMode) {
+      if (headingTimerRef.current) {
+        clearTimeout(headingTimerRef.current);
+        headingTimerRef.current = null;
+      }
+      // Cancel any preview animation and immediately align the map with the
+      // driver. setCamera avoids the long-way rotation bug in animateCamera.
+      const initialHeading = camHeadingRef.current;
+      if (initialHeading != null) {
+        mapRef.current?.setCamera({ heading: initialHeading });
+        lastAnimatedHeadingRef.current = initialHeading;
+      }
+    }
+
     const isIOS      = Platform.OS === "ios";
     const animMs     = isIOS ? 700  : 500;
     const intervalMs = isIOS ? 800  : 650;
@@ -564,7 +581,13 @@ const DriveMapView = forwardRef(function DriveMapView(
         : Math.abs(((hdg - prev) + 540) % 360 - 180);
       if (delta < 5) return;
       lastAnimatedHeadingRef.current = hdg;
-      mapRef.current?.animateCamera({ heading: hdg }, { duration: animMs });
+      if (tripModeRef.current) {
+        // No tween during active drive: a direct, wrap-safe camera update keeps
+        // the road ahead upright and cannot rotate through the long arc.
+        mapRef.current?.setCamera({ heading: hdg });
+      } else {
+        mapRef.current?.animateCamera({ heading: hdg }, { duration: animMs });
+      }
     }, intervalMs);
 
     return () => {
@@ -573,14 +596,14 @@ const DriveMapView = forwardRef(function DriveMapView(
         headingIntervalRef.current = null;
       }
     };
-  }, []); // mount/unmount only — interval self-gates via mapDriftedRef + camHeadingRef
+  }, [tripMode]); // active drive uses direct heading; preview may animate
   /** Schedule a delayed heading animation, replacing any pending one and
    *  guarding against unmount races. */
   const scheduleHeadingAnim = useCallback((heading: number, delayMs: number, durationMs: number) => {
     if (headingTimerRef.current) clearTimeout(headingTimerRef.current);
     headingTimerRef.current = setTimeout(() => {
       headingTimerRef.current = null;
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || tripModeRef.current) return;
       mapRef.current?.animateCamera({ heading }, { duration: durationMs });
     }, delayMs);
   }, []);
@@ -824,7 +847,8 @@ const DriveMapView = forwardRef(function DriveMapView(
   // ── GPS camera follow ─────────────────────────────────────────────────────
   //
   // Keeps the driver centred on screen in a stable heading-up orientation.
-  // Active in both plain drive mode and planned-route navigation.
+  // Active drive applies the smoothed heading directly (without a rotation
+  // animation) and shifts the centre forward so the road ahead fills the map.
   // Pauses while the driver manually pans/zooms (drift flag); resumes on Recenter.
   //
   // Stability design:
@@ -930,7 +954,7 @@ const DriveMapView = forwardRef(function DriveMapView(
           { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: smoothed, longitudeDelta: smoothed },
           500,
         );
-        if (Platform.OS !== "ios" && camHeadingRef.current != null) {
+        if (!tripMode && Platform.OS !== "ios" && camHeadingRef.current != null) {
           scheduleHeadingAnim(camHeadingRef.current, 150, 200);
         }
         return;
@@ -973,7 +997,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     // of free time between animations which caused apparent "freezing" on slow
     // GPS devices.
     mapRef.current?.animateCamera(driveCameraUpdate, { duration: 350 });
-  }, [currentLat, currentLng, mapDrifted, driverHeading, currentSpeed]);
+  }, [currentLat, currentLng, mapDrifted, driverHeading, currentSpeed, tripMode]);
 
   // Detect when the driver manually pans/zooms the map while navigation is
   // active. That drift means their view has left the GPS position — surface
@@ -1119,9 +1143,11 @@ const DriveMapView = forwardRef(function DriveMapView(
       { latitude: laCenter.latitude, longitude: laCenter.longitude, latitudeDelta: snapDelta, longitudeDelta: snapDelta },
       500,
     );
-    scheduleHeadingAnim(hdg, 550, 300);
+    if (!tripMode) {
+      scheduleHeadingAnim(hdg, 550, 300);
+    }
     onDriftChange?.(false);
-  }, [currentLat, currentLng, currentSpeed, driverHeading, onDriftChange]);
+  }, [currentLat, currentLng, currentSpeed, driverHeading, onDriftChange, scheduleHeadingAnim, tripMode]);
 
   const focusCoords = useCallback((lat: number, lng: number) => {
     // Pan the map to the alert's location, then sonar-pulse the pin for 5 s.
