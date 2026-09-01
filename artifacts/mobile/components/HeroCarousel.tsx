@@ -1,36 +1,20 @@
 /**
- * HeroCarousel — Showroom drive-in effect
+ * HeroCarousel — reference-matched Start Driving carousel.
  *
- * Cars face RIGHT (scaleX: -1 applied via DefaultVehicleImage for user
- * vehicles; GENERIC_SLIDES.flipX for fallback PNGs).
- *
- * Each slide lifecycle:
- *   1. ENTER  — car drives in from LEFT, decelerates to centre.
- *   2. HOLD   — quick zoom spotlight + tip text visible.
- *   3. EXIT   — car drives RIGHT and disappears completely.
- *   4. SWAP   — index changes, car repositions off-screen left (invisible).
- *   5. Repeat from ENTER with the next car.
- *
- * No two cars are ever on screen simultaneously.
+ * The selected vehicle stays visible in front of the layered artwork while
+ * the topic copy cross-fades between slides.
  */
 
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Animated, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { DefaultVehicleImage } from "@/components/DefaultVehicleImage";
 import { SavedVehicle } from "@/utils/savedVehicles";
 
 // ── Timing ────────────────────────────────────────────────────────────────────
-const DRIVE_IN_MS  = 1100;  // enter from left (ease-out)
-const ZOOM_IN_MS   =  450;  // scale up on arrival
-const HOLD_MS      = 3800;  // hold at full zoom with tip visible
-const ZOOM_OUT_MS  =  350;  // scale back before leaving
-const TIP_OUT_MS   =  200;  // tip fade-out
-const DRIVE_OUT_MS = 1000;  // exit right (ease-in)
-
-const OFFSCREEN    = 260;   // px beyond card edge — car is invisible here
-const ZOOM_SCALE   = 1.09;
+const HOLD_MS = 4600;
+const TIP_FADE_MS = 220;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Slide {
@@ -124,16 +108,15 @@ function CarImage({
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface Props {
   activeVehicle?: SavedVehicle | null;
-  showLongPressHint?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
+export function HeroCarousel({ activeVehicle }: Props) {
   const { width: viewportWidth } = useWindowDimensions();
   const isCompact = viewportWidth < 380;
-  const artworkSize = isCompact ? 116 : 132;
-  const carWidth = isCompact ? 172 : 188;
-  const carHeight = isCompact ? 118 : 128;
+  const artworkSize = isCompact ? 128 : 138;
+  const carWidth = isCompact ? 178 : 194;
+  const carHeight = isCompact ? 122 : 132;
   const slides: Slide[] = FEATURES.map((feature, i) => ({
     ...feature,
     image:  !!activeVehicle ? null : GENERIC_SLIDES[i % GENERIC_SLIDES.length].image,
@@ -144,12 +127,10 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
 
   const [curIdx, setCurIdx] = useState(0);
 
-  // Single animated car — reused for every slide.
-  const carPos   = useRef(new Animated.Value(-OFFSCREEN)).current;
-  const zoomScale = useRef(new Animated.Value(1)).current;
-  const tipOpacity = useRef(new Animated.Value(0)).current;
+  const tipOpacity = useRef(new Animated.Value(1)).current;
 
   const cancelRef   = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const slidesRef   = useRef(slides);
   slidesRef.current = slides;
 
@@ -157,83 +138,35 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
     cancelRef.current = false;
     const n = slidesRef.current.length;
 
-    // ── Phase 3: zoom out → tip out → drive off right ────────────────────────
-    // Then swap the index and immediately begin the next slide's entry.
-    function doExit(idx: number) {
-      if (cancelRef.current) return;
-      const next = (idx + 1) % n;
-
-      Animated.sequence([
-        Animated.timing(zoomScale, {
-          toValue: 1, duration: ZOOM_OUT_MS,
-          easing: Easing.in(Easing.cubic), useNativeDriver: true,
-        }),
+    function scheduleNext() {
+      timerRef.current = setTimeout(() => {
+        if (cancelRef.current) return;
         Animated.timing(tipOpacity, {
-          toValue: 0, duration: TIP_OUT_MS, useNativeDriver: true,
-        }),
-        // Drive off to the RIGHT — car disappears completely before anything happens.
-        Animated.timing(carPos, {
-          toValue: OFFSCREEN, duration: DRIVE_OUT_MS,
-          easing: Easing.in(Easing.cubic), useNativeDriver: true,
-        }),
-      ]).start(({ finished }) => {
-        if (!finished || cancelRef.current) return;
-
-        // Snap values: reset scale/opacity, teleport car to entry position.
-        zoomScale.setValue(1);
-        tipOpacity.setValue(0);
-        carPos.setValue(-OFFSCREEN); // invisible off-screen left
-
-        // Swap the slide index — car image changes while off-screen.
-        setCurIdx(next);
-
-        // One frame later, drive the new car in.
-        requestAnimationFrame(() => doEnter(next));
-      });
-    }
-
-    // ── Phase 2: zoom in + hold, then exit ───────────────────────────────────
-    function doHold(idx: number) {
-      if (cancelRef.current) return;
-
-      Animated.parallel([
-        Animated.timing(zoomScale, {
-          toValue: ZOOM_SCALE, duration: ZOOM_IN_MS,
-          easing: Easing.out(Easing.cubic), useNativeDriver: true,
-        }),
-        Animated.timing(tipOpacity, {
-          toValue: 1, duration: ZOOM_IN_MS, useNativeDriver: true,
-        }),
-      ]).start(({ finished }) => {
-        if (!finished || cancelRef.current) return;
-
-        Animated.delay(HOLD_MS).start(({ finished: f2 }) => {
-          if (!f2 || cancelRef.current) return;
-          doExit(idx);
+          toValue: 0,
+          duration: TIP_FADE_MS,
+          useNativeDriver: true,
+        }).start(({ finished }) => {
+          if (!finished || cancelRef.current) return;
+          setCurIdx((idx) => (idx + 1) % n);
+          Animated.timing(tipOpacity, {
+            toValue: 1,
+            duration: TIP_FADE_MS,
+            useNativeDriver: true,
+          }).start(({ finished: fadedIn }) => {
+            if (fadedIn && !cancelRef.current) scheduleNext();
+          });
         });
-      });
+      }, HOLD_MS);
     }
 
-    // ── Phase 1: drive car in from the left ──────────────────────────────────
-    function doEnter(idx: number) {
-      if (cancelRef.current) return;
+    tipOpacity.setValue(1);
+    scheduleNext();
 
-      Animated.timing(carPos, {
-        toValue: 0, duration: DRIVE_IN_MS,
-        easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (!finished || cancelRef.current) return;
-        doHold(idx);
-      });
-    }
-
-    // Kick off with the first slide.
-    carPos.setValue(-OFFSCREEN);
-    zoomScale.setValue(1);
-    tipOpacity.setValue(0);
-    doEnter(0);
-
-    return () => { cancelRef.current = true; };
+    return () => {
+      cancelRef.current = true;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      tipOpacity.stopAnimation();
+    };
   }, []);
 
   const curSlide = slides[curIdx];
@@ -257,18 +190,26 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
               width: artworkSize,
               height: artworkSize,
               borderRadius: artworkSize / 2,
-              left: isCompact ? 0 : 5,
-              top: isCompact ? 8 : 10,
+              left: isCompact ? 9 : 14,
+              top: isCompact ? 13 : 16,
             },
           ]}
         >
-          {/* The reference uses a second, taller rounded backdrop inside the
-              halo. It is intentionally lighter and narrower than the outer
-              circle, so the two shapes read as separate layers. */}
-          <View style={styles.artInnerBackdrop}>
+          <View pointerEvents="none" style={styles.artHaloInnerRing} />
+
+          {/* Narrow phone/contact-style watermark inside the circular halo. */}
+          <View
+            style={[
+              styles.artInnerBackdrop,
+              {
+                width: Math.round(artworkSize * 0.38),
+                height: Math.round(artworkSize * 0.65),
+              },
+            ]}
+          >
             <Ionicons
               name={watermarkIcon}
-              size={Math.round(artworkSize * 0.48)}
+              size={Math.round(artworkSize * 0.43)}
               color="#B8F1CD"
               style={styles.artWatermark}
             />
@@ -280,11 +221,10 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
           </View>
         </View>
 
-        <Animated.View
+        <View
           style={[
             styles.carSlot,
-            { width: carWidth, height: carHeight, bottom: isCompact ? 11 : 14 },
-            { transform: [{ translateX: carPos }, { scale: zoomScale }] },
+            { width: carWidth, height: carHeight, bottom: isCompact ? 17 : 20 },
           ]}
         >
           <CarImage
@@ -293,7 +233,7 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
             width={carWidth}
             height={carHeight}
           />
-        </Animated.View>
+        </View>
 
         {/* Dot indicators */}
         <View style={styles.dotsRow}>
@@ -312,24 +252,20 @@ export function HeroCarousel({ activeVehicle, showLongPressHint }: Props) {
 
         <View style={styles.featureRow}>
           <View style={[styles.featureIconBubble, isCompact && styles.featureIconBubbleCompact]}>
-            <Ionicons name={curSlide.icon} size={isCompact ? 17 : 20} color="#FFFFFF" />
+            <Ionicons name={curSlide.icon} size={isCompact ? 13 : 15} color="#FFFFFF" />
           </View>
           <Text style={[styles.featureTitle, isCompact && styles.featureTitleCompact]} numberOfLines={1}>{curSlide.title}</Text>
         </View>
 
         <Animated.Text
           style={[styles.tip, isCompact && styles.tipCompact, { opacity: tipOpacity }]}
-          numberOfLines={isCompact ? 5 : 5}
+          numberOfLines={4}
         >
           {curSlide.tip}
         </Animated.Text>
 
-        {showLongPressHint && (
-          <Text style={styles.longPressHint}>Hold to open checklist</Text>
-        )}
-
         <View style={[styles.chevron, isCompact && styles.chevronCompact]}>
-          <Ionicons name="chevron-forward" size={isCompact ? 22 : 25} color="#0A7C3A" />
+          <Ionicons name="chevron-forward" size={isCompact ? 18 : 20} color="#0A7C3A" />
         </View>
       </View>
     </>
@@ -346,18 +282,26 @@ const styles = StyleSheet.create({
   },
   artHalo: {
     position: "absolute",
-    borderWidth: 1.5,
-    borderColor: "#FFFFFF2E",
+    borderWidth: 3,
+    borderColor: "#FFFFFF2B",
     backgroundColor: "#FFFFFF0A",
     alignItems: "center",
     justifyContent: "center",
   },
+  artHaloInnerRing: {
+    position: "absolute",
+    top: 7,
+    right: 7,
+    bottom: 7,
+    left: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#FFFFFF18",
+  },
   artInnerBackdrop: {
-    width: 68,
-    height: 84,
-    borderRadius: 18,
+    borderRadius: 16,
     borderWidth: 2,
-    borderColor: "#FFFFFF20",
+    borderColor: "#FFFFFF1F",
     backgroundColor: "#FFFFFF05",
     alignItems: "center",
     justifyContent: "center",
@@ -371,31 +315,30 @@ const styles = StyleSheet.create({
   },
   carSlot: {
     position: "absolute",
-    left: -5,
+    left: -8,
     alignItems: "flex-start",
     justifyContent: "flex-end",
-    zIndex: 1,
+    zIndex: 2,
   },
   dotsRow: {
     position: "absolute",
-    bottom: 12,
-    left: 12,
+    bottom: 10,
+    left: 24,
     flexDirection: "row",
     gap: 6,
     alignItems: "center",
-    zIndex: 2,
+    zIndex: 3,
   },
   dot:         { height: 5, borderRadius: 3 },
   dotActive:   { width: 14, backgroundColor: "#FFFFFF" },
   dotInactive: { width: 5,  backgroundColor: "#FFFFFF55" },
   textCol: {
     flex: 1,
-    paddingTop: 16,
-    paddingBottom: 14,
+    paddingTop: 13,
+    paddingBottom: 10,
     paddingRight: 18,
     paddingLeft: 7,
-    justifyContent: "center",
-    gap: 5,
+    justifyContent: "flex-start",
   },
   title: {
     fontSize: 21,
@@ -418,18 +361,18 @@ const styles = StyleSheet.create({
   featureRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    marginTop: 2,
+    gap: 6,
+    marginTop: 5,
   },
   featureIconBubble: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     backgroundColor: "#FFFFFF22",
     alignItems: "center",
     justifyContent: "center",
   },
-  featureIconBubbleCompact: { width: 29, height: 29, borderRadius: 15 },
+  featureIconBubbleCompact: { width: 22, height: 22, borderRadius: 11 },
   featureTitle: {
     flex: 1,
     fontSize: 14,
@@ -438,33 +381,27 @@ const styles = StyleSheet.create({
   },
   featureTitleCompact: { fontSize: 12.5 },
   tip: {
-    fontSize: 12,
+    fontSize: 11.2,
     fontFamily: "Inter_400Regular",
     color: "#D7F4E0",
-    lineHeight: 17,
+    lineHeight: 15.5,
+    marginTop: 5,
   },
-  tipCompact: { fontSize: 10.5, lineHeight: 14.5 },
-  longPressHint: {
-    fontSize: 10,
-    fontFamily: "Inter_400Regular",
-    color: "#FFFFFF66",
-    lineHeight: 14,
-    marginTop: 2,
-  },
+  tipCompact: { fontSize: 10, lineHeight: 14 },
   chevron: {
-    marginTop: 7,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    position: "absolute",
+    left: 7,
+    bottom: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "flex-start",
   },
   chevronCompact: {
-    marginTop: 6,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
   },
 });

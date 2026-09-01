@@ -702,7 +702,6 @@ export default function HomeScreen() {
               /* Idle state — showroom carousel with rotating tips */
               <HeroCarousel
                 activeVehicle={activeVehicle}
-                showLongPressHint={quickStartReady}
               />
             )}
           </LinearGradient>
@@ -1137,7 +1136,7 @@ const styles = StyleSheet.create({
   heroCard: {
     flexDirection: "row", alignItems: "stretch",
     borderRadius: 22, marginTop: 16, overflow: "hidden",
-    minHeight: 152,
+    minHeight: 152, aspectRatio: 1711 / 919,
   },
   // Large vehicle image on the left — no padding so it bleeds to the card edge
   heroImgWrap: {
