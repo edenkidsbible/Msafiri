@@ -78,7 +78,7 @@ import {
 import { loadVehicles, type SavedVehicle } from "@/utils/savedVehicles";
 import { recordSession } from "@/utils/vehicleSessionMap";
 import { useTrialSessions, FREE_TRIAL_SESSIONS } from "@/hooks/useTrialSessions";
-import { useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
+import { useSubscription, BYPASS_PAYWALL, IOS_FREE_DRIVE_ACCESS } from "@/lib/revenuecat";
 import { PaywallModal } from "@/components/PaywallModal";
 import { getMakeById, getModelById } from "@/data/carModels";
 import { MarqueeText } from "@/components/MarqueeText";
@@ -444,12 +444,20 @@ export default function DriveScreen() {
     isLoading: trialLoading,
     recordSession: recordTrialSession,
   } = useTrialSessions();
-  // The store controls the three-day window; Msafiri separately limits the
-  // active introductory trial to three qualifying drives.
-  const trialExpired = sessionTrialExpired || trialExpiredUnpaid;
+  // iOS no longer depends on App Store trial metadata for initial access. Its
+  // free allowance ends only after three qualifying drives. Android retains
+  // the existing store-backed trial/eligibility behavior.
+  const trialExpired = IOS_FREE_DRIVE_ACCESS
+    ? sessionTrialExpired
+    : sessionTrialExpired || trialExpiredUnpaid;
   const sessionsRemaining = FREE_TRIAL_SESSIONS - sessionsUsed;
+  const usingFreeDriveAllowance =
+    isOnTrial || (IOS_FREE_DRIVE_ACCESS && !isSubscribed);
   const showFreeDriveCounter =
-    !BYPASS_PAYWALL && isOnTrial && !sessionTrialExpired && !trialLoading;
+    !BYPASS_PAYWALL &&
+    usingFreeDriveAllowance &&
+    !sessionTrialExpired &&
+    !trialLoading;
   // Refs for stable reads inside useFocusEffect without re-creating callbacks.
   const trialExpiredRef  = useRef(false);
   const isSubscribedRef  = useRef(false);
@@ -697,14 +705,31 @@ export default function DriveScreen() {
     // picker. The focus effect also checks this, but a live trial update can
     // arrive while the Drive screen remains focused.
     if (trialLoading) return;
-    if (!BYPASS_PAYWALL && !isSubscribedRef.current) {
+    if (
+      !BYPASS_PAYWALL &&
+      IOS_FREE_DRIVE_ACCESS &&
+      !isSubscribedRef.current &&
+      trialExpiredRef.current
+    ) {
       router.replace("/paywall" as any);
       return;
     }
-    if (!BYPASS_PAYWALL && isOnTrialRef.current && trialExpiredRef.current) {
+    if (
+      !BYPASS_PAYWALL &&
+      !IOS_FREE_DRIVE_ACCESS &&
+      !isSubscribedRef.current
+    ) {
+      router.replace("/paywall" as any);
+      return;
+    }
+    if (
+      !BYPASS_PAYWALL &&
+      isOnTrialRef.current &&
+      trialExpiredRef.current
+    ) {
       Alert.alert(
         "Trial drive limit reached",
-        `You've completed the ${FREE_TRIAL_SESSIONS} qualifying drives included in your free trial. Unlimited driving unlocks when the paid subscription period begins.`,
+        `You've completed the ${FREE_TRIAL_SESSIONS} qualifying drives included in your free access. Subscribe to unlock unlimited driving.`,
         [{ text: "OK" }],
       );
       return;
@@ -755,7 +780,10 @@ export default function DriveScreen() {
       tripStartTimeRef.current = now;
       if (
         !BYPASS_PAYWALL &&
-        isOnTrialRef.current &&
+        (
+          isOnTrialRef.current ||
+          (IOS_FREE_DRIVE_ACCESS && !isSubscribedRef.current)
+        ) &&
         !trialExpiredRef.current
       ) {
         const markerGeneration = ++freeDriveMarkerGenerationRef.current;
@@ -877,7 +905,20 @@ export default function DriveScreen() {
     // ── Trial gate: block a 4th+ drive during the active store trial ──
     // Reads from refs (not state) so the useFocusEffect callback remains stable
     // and doesn't need subscription/trial values in its own dep array.
-    if (!BYPASS_PAYWALL && !isSubscribedRef.current) {
+    if (
+      !BYPASS_PAYWALL &&
+      IOS_FREE_DRIVE_ACCESS &&
+      !isSubscribedRef.current &&
+      trialExpiredRef.current
+    ) {
+      router.replace("/paywall" as any);
+      return;
+    }
+    if (
+      !BYPASS_PAYWALL &&
+      !IOS_FREE_DRIVE_ACCESS &&
+      !isSubscribedRef.current
+    ) {
       router.replace("/paywall" as any);
       return;
     }
@@ -1169,7 +1210,12 @@ export default function DriveScreen() {
     // This prevents accidental short sessions from consuming a free drive.
     const qualifiesForTrial = wallClockS >= 300 || snap.distanceM >= 2000;
     const trialDrivesRemaining =
-      isOnTrialRef.current && !trialExpiredRef.current && qualifiesForTrial
+      (
+        isOnTrialRef.current ||
+        (IOS_FREE_DRIVE_ACCESS && !isSubscribedRef.current)
+      ) &&
+      !trialExpiredRef.current &&
+      qualifiesForTrial
         ? Math.max(0, FREE_TRIAL_SESSIONS - (sessionsUsedRef.current + 1))
         : null;
 
@@ -1318,7 +1364,7 @@ export default function DriveScreen() {
     captureAndStopRef.current();
     Alert.alert(
       "Free drives complete",
-      "You've used the three qualifying drives included in your free trial. Unlimited driving unlocks when the paid subscription period begins.",
+      "You've used your three free qualifying drives. Subscribe to unlock unlimited driving.",
       [
         {
           text: "View Plans",
@@ -1957,10 +2003,9 @@ export default function DriveScreen() {
               </Text>
             </View>
 
-            {/* ── Store-trial sessions remaining pill ─────────────────────
-                Shown only during an active introductory subscription trial.
-                Turns amber on the last included drive and disappears once
-                the subscription converts to paid.                         */}
+            {/* ── Free-drive sessions remaining pill ──────────────────────
+                Shown for the iOS session allowance and active store trials.
+                It disappears once the subscription converts to paid.      */}
             {showFreeDriveCounter && (
               <View style={{
                 flexDirection: "row", alignItems: "center", gap: 6,
@@ -1985,8 +2030,8 @@ export default function DriveScreen() {
                     : c.primary,
                 }}>
                   {sessionsRemaining === 1
-                    ? "1 trial drive left"
-                    : `${sessionsRemaining} trial drives left`}
+                    ? "1 free drive left"
+                    : `${sessionsRemaining} free drives left`}
                 </Text>
               </View>
             )}
@@ -3431,7 +3476,7 @@ export default function DriveScreen() {
               >
                 <Ionicons name="leaf-outline" size={12} color="#22C55E" />
                 <Text style={styles.inDriveTrialPillTxt} numberOfLines={1}>
-                  Trial Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}
+                  Free Drive {sessionsUsed + 1} of {FREE_TRIAL_SESSIONS}
                 </Text>
               </View>
             ) : <View style={styles.driveStatusSpacer} />}

@@ -28,18 +28,20 @@ test("store zero-price intro metadata is presented as a free trial", () => {
   }
 });
 
-test("a non-subscriber cannot enter through the former free-drive dismissal", () => {
+test("iOS enters the app without RevenueCat while Android keeps its subscription gate", () => {
   assert.match(
     layout,
-    /if \(!isSubscribed && !wasSubscribed\.current\) \{[\s\S]*?router\.replace\("\/paywall"\)/,
+    /if \(!IOS_FREE_DRIVE_ACCESS && !isSubscribed && !wasSubscribed\.current\)/,
   );
+  assert.match(layout, /if \(subLoading && !IOS_FREE_DRIVE_ACCESS\) return/);
+  assert.match(paywall, /if \(Platform\.OS === "ios"\) \{[\s\S]*?router\.replace\("\/\(tabs\)"\)/);
   assert.doesNotMatch(paywall, /Start Free Drive/);
-  assert.doesNotMatch(paywall, /void handleEnterApp\(\);[\s\S]*?return;[\s\S]*?Subscription Required/);
 });
 
-test("three-drive cap is enforced only while the store trial is active", () => {
+test("three-drive cap covers iOS free access and active store trials", () => {
   assert.match(drive, /const \{ isSubscribed, isOnTrial, trialExpiredUnpaid \} = useSubscription\(\)/);
+  assert.match(drive, /IOS_FREE_DRIVE_ACCESS &&[\s\S]*?!isSubscribedRef\.current &&[\s\S]*?trialExpiredRef\.current/);
   assert.match(drive, /isOnTrialRef\.current && trialExpiredRef\.current/);
   assert.match(drive, /Trial drive limit reached/);
-  assert.match(drive, /Trial Drive \{sessionsUsed \+ 1\} of \{FREE_TRIAL_SESSIONS\}/);
+  assert.match(drive, /Free Drive \{sessionsUsed \+ 1\} of \{FREE_TRIAL_SESSIONS\}/);
 });

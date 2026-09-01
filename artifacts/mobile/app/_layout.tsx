@@ -70,7 +70,13 @@ import { useColors } from "@/hooks/useColors";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
 import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
-import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
+import {
+  initializeRevenueCat,
+  SubscriptionProvider,
+  useSubscription,
+  BYPASS_PAYWALL,
+  IOS_FREE_DRIVE_ACCESS,
+} from "@/lib/revenuecat";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import { defineShareBackgroundTask } from "@/utils/backgroundShare";
 import { defineBackgroundNotificationTask } from "@/utils/backgroundNotificationTask";
@@ -430,14 +436,15 @@ function RootLayoutNav() {
       router.replace("/onboarding");
       return;
     }
-    // Onboarding done — wait for RevenueCat before deciding whether the driver
-    // must start a subscription or can enter with an active entitlement.
-    if (subLoading) return;
+    // Android still requires RevenueCat to resolve before app entry. iOS uses a
+    // three-drive allowance, so a slow or broken App Store response must never
+    // hold the user on the startup/paywall path.
+    if (subLoading && !IOS_FREE_DRIVE_ACCESS) return;
     checked.current = true;
     // Only route to paywall if we've never seen a valid subscription in this
     // session. wasSubscribed guards against a transient isSubscribed=false that
     // RevenueCat emits while re-validating entitlements after a background resume.
-    if (!isSubscribed && !wasSubscribed.current) {
+    if (!IOS_FREE_DRIVE_ACCESS && !isSubscribed && !wasSubscribed.current) {
       // Premium access starts only after the user begins the store-backed trial
       // or buys a plan. The trial itself is capped at three qualifying drives.
       router.replace("/paywall");
@@ -455,18 +462,19 @@ function RootLayoutNav() {
   // ── Deep link handler (geo: URIs and msafiri:// scheme) ────────────────────
   // Handles both cold-start (app launched from a location tap) and warm-start
   // (app already running in background when the user taps a location link).
-  // Only navigates when the user has finished onboarding and is subscribed,
+  // Only navigates when the user has finished onboarding and has app access,
   // so the destination is never set before the main tab navigator is mounted.
   // On cold start Linking.getInitialURL() can resolve before the Stack mounts;
   // queue the parsed destination and flush it once navReady flips true.
   const pendingDeepLinkRef = useRef<ReturnType<typeof parseNavigationUrl> | null>(null);
   const handleNavigationUrl = useCallback(
     (url: string) => {
-      // Deep links cannot bypass the subscription gate.
+      // Deep links cannot bypass Android's subscription gate. iOS grants app
+      // access before subscription and enforces its allowance when Drive starts.
       if (
         !hydrated ||
         !onboardingComplete ||
-        (!isSubscribed && !wasSubscribed.current)
+        (!IOS_FREE_DRIVE_ACCESS && !isSubscribed && !wasSubscribed.current)
       ) return;
       const dest = parseNavigationUrl(url);
       if (!dest) return;

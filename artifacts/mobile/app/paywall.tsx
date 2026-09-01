@@ -492,6 +492,12 @@ export default function PaywallScreen() {
   }
 
   function handleDismiss() {
+    // iOS users retain access to the app. The subscription screen is enforced
+    // only when they attempt a fourth qualifying drive.
+    if (Platform.OS === "ios") {
+      router.replace("/(tabs)");
+      return;
+    }
     const buttons: any[] = [
       { text: "Subscribe Now", style: "default" },
     ];
