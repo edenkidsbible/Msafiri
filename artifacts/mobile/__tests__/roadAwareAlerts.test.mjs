@@ -67,7 +67,7 @@ describe("single alert owner lifecycle", () => {
     assert.match(appContextSource, /if \(!canDeliverForegroundAlert\(\) \|\| !isCurrentAlertGeneration\(generation\)\) return/);
     assert.match(appContextSource, /const foregroundOwnsAlert = canDeliverForegroundAlert\(\)/);
     assert.match(appContextSource, /stopAlertVoice\(\)/);
-    assert.match(appContextSource, /stopSound\("alert"\)/);
+    assert.doesNotMatch(appContextSource, /stopSound\("alert"\)/);
   });
 
   it("selects CAF only on iOS and an Android channel only on Android", () => {

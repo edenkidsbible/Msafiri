@@ -1246,6 +1246,10 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   const startDashcam = useCallback(() => {
     isRecordingRef.current  = true;
     segmentStartRef.current = Date.now();
+    // Starting and clearing the pending UI are one atomic state transition.
+    // Callers must not be able to leave Drive displaying "Starting…" after the
+    // native camera has already reported ready.
+    setBackgroundRecordPending(false);
     setIsRecording(true);
   }, []);
 
@@ -1299,7 +1303,15 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
    * CameraView mounted until the final clip is safely on disk.
    */
   const stopAndSaveDashcam = useCallback(() => {
-    if (!isRecordingRef.current) return;
+    if (!isRecordingRef.current) {
+      // Allow the Drive toggle to cancel a camera start that has not reached
+      // onCameraReady yet. Previously this returned without clearing pending,
+      // permanently trapping the control in "Starting…".
+      setBackgroundRecordPending(false);
+      setIsDashcamOpen(false);
+      cameraRef.current?.stopRecording();
+      return;
+    }
     console.log("[Dashcam] stopAndSaveDashcam() called");
     isRecordingRef.current    = false; // signals trip-end to onSegmentComplete
     pendingTripEndRef.current = true;  // safety timer clears this if onSegmentComplete doesn't

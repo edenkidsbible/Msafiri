@@ -22,6 +22,10 @@ const homeSource = fs.readFileSync(
   new URL("../app/(tabs)/index.tsx", import.meta.url),
   "utf8",
 );
+const dashcamOverlaySource = fs.readFileSync(
+  new URL("../components/DashcamOverlay.tsx", import.meta.url),
+  "utf8",
+);
 
 test("community map markers stop bitmap tracking after their visual state settles", () => {
   assert.match(driveMapSource, /tracksViewChanges=\{!clusterMarkersFrozen\}/);
@@ -86,4 +90,14 @@ test("Drive auto-start consumes a verified grant without prompting", () => {
   assert.match(startBackground, /if \(!cameraState\?\.granted\) return false/);
   assert.doesNotMatch(startBackground, /requestCameraPermission/);
   assert.doesNotMatch(startBackground, /requestMicPermission/);
+});
+
+test("Dashcam ready, cancel, failure, and retry paths cannot strand pending state", () => {
+  const startDashcam = dashcamContextSource.match(
+    /const startDashcam = useCallback\(\(\) => \{([\s\S]*?)\n  \}, \[\]\);/,
+  )?.[1] ?? "";
+  assert.match(startDashcam, /setBackgroundRecordPending\(false\)/);
+  assert.match(dashcamContextSource, /if \(!isRecordingRef\.current\) \{[\s\S]{0,300}setBackgroundRecordPending\(false\)/);
+  assert.match(dashcamOverlaySource, /onMountError=\{\(event: any\) => \{[\s\S]{0,160}clearBackgroundRecordPending\(\)/);
+  assert.match(dashcamOverlaySource, /setCameraAttempt\(\(attempt\) => attempt \+ 1\)[\s\S]{0,80}startBackgroundRecording\(\)/);
 });

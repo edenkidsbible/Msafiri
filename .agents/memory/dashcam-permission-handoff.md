@@ -7,4 +7,4 @@ First-time camera and microphone permission prompts belong to the explicit Home 
 
 **Why:** This timing gives the permission prompt clear driver intent without loading the native camera module during cold start. It also lets the checklist reflect the real grant and preview the Dashcam before Drive mounts its recording camera.
 
-**How to apply:** Request from Start Driving before checklist navigation; keep automatic Drive recording non-prompting; re-read the OS grant before starting; bound the camera-ready handshake with a visible retry/settings path.
+**How to apply:** Request from Start Driving before checklist navigation; keep automatic Drive recording non-prompting; re-read the OS grant before starting; make recording-start and pending-clear one transition; every cancel, mount-error, timeout, and retry path must clear or re-own pending state.

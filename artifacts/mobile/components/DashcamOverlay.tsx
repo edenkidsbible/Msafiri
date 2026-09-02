@@ -85,6 +85,7 @@ export default function DashcamOverlay() {
     isDashcamOpen, backgroundRecordPending, recordingEpoch, bumpRecordingEpoch,
     settings, storageUsedBytes, segments,
     startDashcam, stopDashcam, lockCurrentClip, updateSettings, clearUnlocked, stopAndSaveDashcam,
+    startBackgroundRecording,
     closeDashcam, openDashcam, clearBackgroundRecordPending, setCameraRef,
     onSegmentStart, onSegmentComplete,
     cameraPermissionState, microphonePermissionGranted, requestDashcamPermissions,
@@ -280,14 +281,14 @@ export default function DashcamOverlay() {
     cameraReadyRef.current = false;
     setCameraError(null);
     setCameraAttempt((attempt) => attempt + 1);
-  }, []);
+    void startBackgroundRecording();
+  }, [startBackgroundRecording]);
 
-  // Android camera services can fail to allocate a surface after a permission
-  // grant or an OEM camera-app handoff. Bound the wait and return the driver to
-  // a visible retry state instead of leaving recording in "Starting".
+  // Native camera services can fail to allocate a surface after a permission
+  // grant or camera-session handoff. Bound the wait and return the driver to a
+  // visible retry state instead of leaving recording in "Starting".
   useEffect(() => {
     if (
-      Platform.OS !== "android" ||
       !hasCameraAccess ||
       cameraReadyRef.current ||
       (!isDashcamOpen && !backgroundRecordPending)
@@ -772,7 +773,6 @@ export default function DashcamOverlay() {
             }
           }}
           onMountError={(event: any) => {
-            if (Platform.OS !== "android") return;
             cameraReadyRef.current = false;
             clearBackgroundRecordPending();
             setCameraError(
@@ -784,7 +784,7 @@ export default function DashcamOverlay() {
         />
       )}
 
-      {cameraError && showUI && Platform.OS === "android" && (
+      {cameraError && showUI && (
         <View style={styles.cameraErrorCard}>
           <Ionicons name="camera-reverse-outline" size={22} color="#FBBF24" />
           <Text style={styles.cameraErrorTitle}>Camera unavailable</Text>

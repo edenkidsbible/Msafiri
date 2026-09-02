@@ -42,7 +42,7 @@ import {
 } from "@/utils/backgroundOdometer";
 import { resolveIncidentType } from "@/constants/incidentTypes";
 import { getRoadName } from "@/utils/snapToRoad";
-import { playSound, getSoundsMuted, stopSound } from "@/utils/sound";
+import { playSound, getSoundsMuted } from "@/utils/sound";
 import { navBreadcrumb, gpsBreadcrumb } from "@/utils/telemetry";
 import { syncBackup } from "@/utils/backupSync";
 import { loadVehicles, saveVehicles } from "@/utils/savedVehicles";
@@ -1052,7 +1052,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         alertVoiceTimerRef.current = null;
       }
       stopAlertVoice();
-      stopSound("alert");
     });
     return () => sub.remove();
   }, []);

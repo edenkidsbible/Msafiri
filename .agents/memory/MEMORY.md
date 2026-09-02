@@ -109,3 +109,4 @@
 - [Push campaign singleton claims](push-campaign-singleton-claims.md) — time-window guards must atomically claim campaigns across production workers; dedupe recipients by vendor/device identity.
 - [Dashcam force-close durability](dashcam-force-close-durability.md) — commit completed-clip indexes before eviction; recover orphaned document-directory MP4s on launch.
 - [Dashcam permission handoff](dashcam-permission-handoff.md) — checklist owns first-time prompts; quick start requires existing camera grant; pending native starts need a timeout escape.
+- [AppState audio cleanup](appstate-audio-cleanup.md) — background-transition handlers must never call nonessential audio helpers that can throw and break lifecycle handoffs.
