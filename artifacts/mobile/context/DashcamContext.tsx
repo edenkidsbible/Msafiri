@@ -48,7 +48,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import NetInfo from "@react-native-community/netinfo";
 import * as Notifications from "expo-notifications";
-import { Alert, AppState, PermissionsAndroid, Platform } from "react-native";
+import { Alert, AppState, Platform } from "react-native";
 import { API_BASE } from "@/utils/apiClient";
 import type { CameraView } from "expo-camera";
 import {
@@ -1111,63 +1111,15 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     }
     if (isRecordingRef.current) return true;
 
-    // Android permission prompting is deliberately reserved for an explicit UI
-    // action. Starting a recording only consumes the provider-owned OS state.
-    if (Platform.OS === "android" && !(await refreshDashcamCameraPermission()).granted) {
-      return false;
-    }
-
-    if (Platform.OS !== "android" && !cameraPermission?.granted) {
-      if (false) {
-        // On Android, use PermissionsAndroid directly to bypass expo-camera
-        // hook quirks — some OEM devices report canAskAgain:false before
-        // the dialog is ever shown, causing the hook to silently fail.
-        const result = await PermissionsAndroid.request(
-          PermissionsAndroid.PERMISSIONS.CAMERA,
-          {
-            title: "Dashcam Access",
-            message:
-              "Msafiri records continuous video while you drive — clips stay " +
-              "private on your device and are never uploaded without your " +
-              "permission.",
-            buttonPositive: "Allow",
-            buttonNegative: "Not Now",
-          }
-        );
-        if (result !== PermissionsAndroid.RESULTS.GRANTED) return false;
-        // Sync expo-camera hook state
-        requestCameraPermissionRef.current().catch(() => {});
-      } else {
-        // iOS path — show a rationale alert first, then expo-camera hook
-        if ((cameraPermission as any)?.status === "undetermined") {
-          await new Promise<void>((resolve) =>
-            Alert.alert(
-              "Dashcam Access",
-              "Msafiri records continuous video while you drive — clips stay private on your device and are never uploaded without your permission. A microphone will also be requested so clips include audio.\n\nTap Continue to grant camera access.",
-              [{ text: "Continue", onPress: () => resolve() }],
-              { cancelable: false },
-            )
-          );
-        }
-        const result = await requestCameraPermissionRef.current();
-        if (!result?.granted) return false;
-      }
-    }
-
-    if (Platform.OS !== "android" && !micPermission?.granted) {
-      await new Promise<void>((resolve) => setTimeout(resolve, 200));
-      try {
-        if (false) {
-          await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.RECORD_AUDIO);
-        } else {
-          await requestMicPermissionRef.current();
-        }
-      } catch { /* muted fallback — dashcam runs without audio */ }
-    }
+    // Recording startup only consumes an existing camera grant. Permission
+    // prompts belong to Start Driving, the checklist, or an explicit Dashcam
+    // button — never to an automatic transition on the Drive screen.
+    const cameraState = await refreshDashcamCameraPermission().catch(() => null);
+    if (!cameraState?.granted) return false;
 
     setBackgroundRecordPending(true);
     return true;
-  }, [cameraPermission?.granted, micPermission?.granted, refreshDashcamCameraPermission]);
+  }, [refreshDashcamCameraPermission]);
 
   const finishVoiceHandoffPause = useCallback(async (): Promise<void> => {
     if (!voiceHandoffPendingRef.current) return;

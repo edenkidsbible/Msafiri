@@ -155,6 +155,7 @@ export default function HomeScreen() {
   const {
     isRecording: dashcamRecording,
     stopDashcam,
+    requestDashcamPermissions,
     refreshDashcamCameraPermission,
   } = useDashcam();
   const weather = useWeather(currentLat, currentLng);
@@ -369,14 +370,20 @@ export default function HomeScreen() {
       router.replace("/(tabs)/drive");
       return;
     }
+    // Camera and microphone prompts intentionally happen here, after the
+    // driver explicitly taps Start Driving and before the checklist mounts its
+    // dashcam-angle preview. This keeps native permission setup out of cold
+    // start and ensures the checklist immediately reflects the real OS state.
+    // A denial never blocks access to the checklist, where the driver gets a
+    // clear retry / Settings path.
+    await requestDashcamPermissions().catch(() => {});
     if (quickStartReadyRef.current) {
-      // All permissions, including camera access, are already confirmed.
+      // All pre-existing permissions were already confirmed.
       router.replace("/(tabs)/drive");
     } else {
-      // Permission explanations and OS prompts are owned by the checklist.
       router.push("/pretrip-check");
     }
-  }, [navTripActive, navTripPaused]);
+  }, [navTripActive, navTripPaused, requestDashcamPermissions]);
 
   const openChecklist = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

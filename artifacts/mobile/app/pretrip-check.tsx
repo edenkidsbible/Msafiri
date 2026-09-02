@@ -196,7 +196,7 @@ function CameraRationaleModal({
           {permanentlyDenied ? (
             <>
               <Text style={[camModalStyles.body, { color: c.mutedForeground }]}>
-                Camera access was previously denied. To use the dashcam and Crash Assistant, you'll need to enable it manually:
+                Camera access was previously denied. To use the dashcam, you'll need to enable it manually:
               </Text>
               <View style={[camModalStyles.stepBox, { backgroundColor: c.muted + "88", borderColor: c.border }]}>
                 <View style={camModalStyles.stepRow}>
@@ -228,7 +228,7 @@ function CameraRationaleModal({
           ) : (
             <>
               <Text style={[camModalStyles.body, { color: c.mutedForeground }]}>
-                Msafiri uses your camera for:
+                Msafiri uses your camera only for the dashcam:
               </Text>
               <View style={camModalStyles.featureList}>
                 <View style={[camModalStyles.featureRow, { borderColor: c.border }]}>
@@ -239,17 +239,6 @@ function CameraRationaleModal({
                     <Text style={[camModalStyles.featureTitle, { color: c.foreground }]}>Dashcam Recording</Text>
                     <Text style={[camModalStyles.featureSub, { color: c.mutedForeground }]}>
                       Continuous footage while you drive. Clips stay on your device.
-                    </Text>
-                  </View>
-                </View>
-                <View style={[camModalStyles.featureRow, { borderColor: c.border, borderTopWidth: 0 }]}>
-                  <View style={[camModalStyles.featureIcon, { backgroundColor: "#EF444418" }]}>
-                    <Ionicons name="warning" size={16} color="#EF4444" />
-                  </View>
-                  <View style={camModalStyles.featureText}>
-                    <Text style={[camModalStyles.featureTitle, { color: c.foreground }]}>Crash Assistant</Text>
-                    <Text style={[camModalStyles.featureSub, { color: c.mutedForeground }]}>
-                      Document accident scenes and vehicles for your records.
                     </Text>
                   </View>
                 </View>

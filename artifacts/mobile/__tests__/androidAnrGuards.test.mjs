@@ -60,11 +60,11 @@ test("Android cold start does not eagerly load the dashcam camera module", () =>
   assert.doesNotMatch(dashcamContextSource, /if \(Platform\.OS !== "web"\) \{[\s\S]{0,120}require\("expo-camera"\)/);
 });
 
-test("Home routes camera permission setup through the pre-trip checklist", () => {
+test("Home requests dashcam permissions after Start Driving and before the checklist", () => {
   const startDriving = homeSource.match(
     /const startDriving = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[[^\]]*\]\);/,
   )?.[1] ?? "";
-  assert.doesNotMatch(startDriving, /requestDashcamPermissions/);
+  assert.match(startDriving, /await requestDashcamPermissions\(\)/);
   assert.match(startDriving, /router\.push\("\/pretrip-check"\)/);
   assert.match(homeSource, /AsyncStorage\.getItem\(DASHCAM_AUTOSTART_KEY\)/);
   assert.match(homeSource, /const camera = await refreshDashcamCameraPermission\(\)/);
@@ -76,4 +76,14 @@ test("a native camera startup stall cannot leave Dashcam pending forever", () =>
   assert.match(dashcamContextSource, /setBackgroundRecordPending\(false\)/);
   assert.match(dashcamContextSource, /Dashcam couldn't start/);
   assert.match(dashcamContextSource, /\}, 15_000\)/);
+});
+
+test("Drive auto-start consumes a verified grant without prompting", () => {
+  const startBackground = dashcamContextSource.match(
+    /const startBackgroundRecording = useCallback\(async \(\): Promise<boolean> => \{([\s\S]*?)\n  \}, \[[^\]]*\]\);/,
+  )?.[1] ?? "";
+  assert.match(startBackground, /refreshDashcamCameraPermission/);
+  assert.match(startBackground, /if \(!cameraState\?\.granted\) return false/);
+  assert.doesNotMatch(startBackground, /requestCameraPermission/);
+  assert.doesNotMatch(startBackground, /requestMicPermission/);
 });

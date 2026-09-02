@@ -64,7 +64,7 @@ export async function requestAndroidCameraPermission(): Promise<AndroidCameraPer
       {
         title: "Camera Access",
         message:
-          "Msafiri needs camera access for dashcam recording and the Crash Assistant. " +
+          "Msafiri needs camera access only for dashcam recording. " +
           "Footage stays on your device.",
         buttonPositive: "Allow",
         buttonNegative: "Not Now",

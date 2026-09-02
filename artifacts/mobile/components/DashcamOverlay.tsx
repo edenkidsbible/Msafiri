@@ -613,8 +613,8 @@ export default function DashcamOverlay() {
   // the permission is actually granted.
   //
   // IMPORTANT: skip this gate when backgroundRecordPending is true.
-  // DashcamContext.startBackgroundRecording() already called requestCameraPermission()
-  // and verified the grant before setting backgroundRecordPending. The Overlay's own
+  // DashcamContext.startBackgroundRecording() already verified the OS grant
+  // before setting backgroundRecordPending. The Overlay's own
   // useCameraPermissions() hook instance may not have re-synced with the OS yet on
   // first mount (separate hook state), so permission?.granted can transiently read
   // false even though permission was just granted. Blocking here returns null,
