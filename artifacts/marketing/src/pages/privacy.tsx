@@ -1,4 +1,5 @@
 import { LegalLayout } from "@/components/legal-layout";
+import { Link } from "wouter";
 
 const S = {
   intro: { fontSize: "1.0625rem", lineHeight: "1.8", color: "hsl(var(--muted-foreground))", marginBottom: "2rem" } as React.CSSProperties,
@@ -255,12 +256,17 @@ export default function Privacy() {
 
       <h3 style={S.h3}>6.3 Deleting Your Data</h3>
       <p style={S.p}>
-        Because Msafiri does not require account registration, your data is linked only to your device ID.
-        To request deletion of all data associated with your device:
+        You can delete all Msafiri data associated with your device profile any time
+        from the App: open <span style={S.bold}>Profile → Danger Zone → Delete My Data</span>,
+        review the details, type <span style={S.bold}>DELETE</span>, and confirm.
+        This is the fastest way to submit a deletion request. Because Msafiri does
+        not require account registration, your data is linked to an anonymous device
+        profile rather than a traditional account.
       </p>
       <ul style={S.ul}>
-        <li style={S.li}>Email us at <span style={S.bold}>privacy@msafirikenya.com</span> with the subject line "Data Deletion Request."</li>
-        <li style={S.li}>We will delete all data tied to your device ID within <span style={S.bold}>30 days</span> of receiving your request, except where retention is required by law or for legitimate security purposes.</li>
+        <li style={S.li}>If you cannot access the App, email <span style={S.bold}>privacy@msafirikenya.com</span> with the subject line "Data Deletion Request."</li>
+        <li style={S.li}>See our dedicated <Link href="/delete-data" style={{ color: "hsl(var(--primary))", fontWeight: 600 }}>Delete All My Data</Link> page for the complete deletion steps, the data types removed or retained, and retention periods.</li>
+        <li style={S.li}>We complete valid deletion requests within <span style={S.bold}>30 days</span>, except for information that must be retained by law or for legitimate security purposes.</li>
       </ul>
 
       <h3 style={S.h3}>6.4 Subscription Cancellation</h3>

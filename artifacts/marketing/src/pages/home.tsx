@@ -1032,6 +1032,7 @@ export default function Home() {
             <Link href="/blog" className="hover:text-foreground transition-colors">Blog</Link>
             <Link href="/contact" className="hover:text-foreground transition-colors">Contact</Link>
             <Link href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+            <Link href="/delete-data" className="hover:text-foreground transition-colors">Delete My Data</Link>
             <Link href="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
           </div>
 

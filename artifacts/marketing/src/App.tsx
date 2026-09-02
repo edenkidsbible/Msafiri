@@ -8,6 +8,7 @@ import Home from "@/pages/home";
 import About from "@/pages/about";
 import Contact from "@/pages/contact";
 import Privacy from "@/pages/privacy";
+import DeleteData from "@/pages/delete-data";
 import Terms from "@/pages/terms";
 import BlogList from "@/pages/blog-list";
 import BlogPost from "@/pages/blog-post";
@@ -23,6 +24,7 @@ function Router() {
       <Route path="/about" component={About} />
       <Route path="/contact" component={Contact} />
       <Route path="/privacy" component={Privacy} />
+      <Route path="/delete-data" component={DeleteData} />
       <Route path="/terms" component={Terms} />
       <Route path="/blog/:slug" component={BlogPost} />
       <Route path="/blog" component={BlogList} />
