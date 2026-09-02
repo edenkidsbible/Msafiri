@@ -171,6 +171,11 @@ interface DashcamContextValue {
    */
   lockSavedClip: (id: string) => void;
   /**
+   * Lock an existing local clip from the gallery and queue it for cloud upload.
+   * This is separate from lockCurrentClip, which stops the active camera recording.
+   */
+  lockSegment: (id: string) => void;
+  /**
    * Delete all saved-for-review clips and clear the review banner.
    * Called when the driver dismisses the review without locking anything.
    */
@@ -1399,11 +1404,12 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /**
-   * Lock a saved-for-review clip and queue it for cloud upload.
-   * Converts savedForReview → locked/manual and enforces the 5-clip limit.
+   * Lock any completed local clip from the gallery and queue it for cloud upload.
+   * This must not use lockCurrentClip: that function stops the active camera
+   * recording and has no effect on a completed segment.
    */
-  const lockSavedClip = useCallback((id: string) => {
-    const seg = segmentsRef.current.find((s) => s.id === id && s.savedForReview);
+  const lockSegment = useCallback((id: string) => {
+    const seg = segmentsRef.current.find((s) => s.id === id && !s.locked);
     if (!seg) return;
 
     const manualCount = segmentsRef.current.filter(
@@ -1442,6 +1448,16 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     uploadQueueRef.current.push(id);
     processUploadQueueRef.current();
   }, [cancelReviewReminder]);
+
+  /**
+   * Backwards-compatible review-card action. The gallery uses lockSegment so
+   * completed rolling clips can also be protected before they are evicted.
+   */
+  const lockSavedClip = useCallback((id: string) => {
+    const seg = segmentsRef.current.find((s) => s.id === id && s.savedForReview);
+    if (!seg) return;
+    lockSegment(id);
+  }, [lockSegment]);
 
   /**
    * Delete all saved-for-review clips and clear the review banner.
@@ -1786,7 +1802,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
       startBackgroundRecording, pauseForVoiceReport, resumeAfterVoiceReport,
       requestDashcamPermissions, refreshDashcamCameraPermission, clearBackgroundRecordPending,
-      lockCurrentClip, lockSavedClip, dismissTripReview,
+      lockCurrentClip, lockSavedClip, lockSegment, dismissTripReview,
       deleteSegment, clearUnlocked, updateSettings,
       clearCloudQuotaFull, pinSegment, unpinSegment,
       bumpRecordingEpoch,
@@ -1799,7 +1815,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
       openDashcam, closeDashcam, startDashcam, stopDashcam, stopAndSaveDashcam,
       startBackgroundRecording, pauseForVoiceReport, resumeAfterVoiceReport,
       requestDashcamPermissions, refreshDashcamCameraPermission, clearBackgroundRecordPending,
-      lockCurrentClip, lockSavedClip, dismissTripReview,
+      lockCurrentClip, lockSavedClip, lockSegment, dismissTripReview,
       deleteSegment, clearUnlocked, updateSettings,
       clearCloudQuotaFull, pinSegment, unpinSegment,
       bumpRecordingEpoch,

@@ -388,7 +388,7 @@ export default function DashcamVideosScreen() {
   const {
     segments, deleteSegment, storageUsedBytes,
     isRecording, openDashcam, pushDeviceId, settings,
-    lockCurrentClip, cloudQuotaFull, clearCloudQuotaFull,
+    lockSegment, cloudQuotaFull, clearCloudQuotaFull,
   } = useDashcam();
 
   const { fromSummary } = useLocalSearchParams<{ fromSummary?: string }>();
@@ -903,22 +903,25 @@ export default function DashcamVideosScreen() {
 
 
   // ── Share local file helper (extracted so it's reusable) ──────────────────
-  const shareLocalFile = useCallback(async (clip: UnifiedClip) => {
+  const shareLocalFile = useCallback(async (clip: UnifiedClip): Promise<boolean> => {
     try {
+      if (!clip.uri) return false;
+      const info = await FileSystem.getInfoAsync(clip.uri);
+      if (!info.exists) return false;
+
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
-        await Sharing.shareAsync(clip.uri!, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" });
+        await Sharing.shareAsync(clip.uri, { mimeType: "video/mp4", dialogTitle: "Share dashcam clip" });
       } else {
         await RNShare.share({
           message: `Msafiri dashcam clip — ${fmtDateTime(clip.startedAt)}`,
-          url: clip.uri!,
+          url: clip.uri,
         });
       }
+      return true;
     } catch (err: any) {
       const msg: string = err?.message ?? "";
-      if (!msg.toLowerCase().includes("cancel")) {
-        Alert.alert("Share Failed", "Could not share this clip.");
-      }
+      return msg.toLowerCase().includes("cancel");
     }
   }, []);
 
@@ -935,58 +938,31 @@ export default function DashcamVideosScreen() {
     const serverClipId = clip.source === "server" ? clip.id : (clip.serverId ?? null);
     const hasServerCopy = !!serverClipId;
 
-    if (hasLocalFile && !hasServerCopy) {
-      // Local-only — clip hasn't been uploaded yet.  Give helpful context
-      // instead of silently proceeding to a file share or failing.
-      const isUploading = clip.uploadStatus === "pending";
-      const uploadFailed = clip.uploadStatus === "failed";
-
-      if (isUploading || uploadFailed) {
-        Alert.alert(
-          isUploading ? "Still Uploading" : "Upload Failed",
-          isUploading
-            ? "This clip is backing up to the cloud. You can share the video file now, or wait a moment and share the link instead."
-            : "This clip couldn't be backed up. You can still share the video file directly.",
-          [
-            { text: "Share File", onPress: () => shareLocalFile(clip) },
-            { text: "Cancel", style: "cancel" as const },
-          ],
-        );
+    if (hasLocalFile) {
+      // A completed local clip can always be shared directly; do not make that
+      // path depend on cloud upload or short-link generation.
+      const shared = await shareLocalFile(clip);
+      if (shared) return;
+      if (!hasServerCopy) {
+        Alert.alert("Share Failed", "The video file is no longer available on this device.");
         return;
       }
-
-      // Not locked / no upload intended — share file directly.
-      await shareLocalFile(clip);
-      return;
     }
 
-    // Clip has a server copy — offer a branded short link plus either
-    // "Share File" (still on device) or "Save to Phone" (server-only).
+    // The local file is unavailable, so use the cloud copy. Prefer the branded
+    // link but fall back to a signed URL rather than leaving Share broken.
     try {
       setSharingId(clip.id);
-      const shortUrl = await getShareLink(serverClipId!);
-      if (!shortUrl) {
-        Alert.alert("Share Error", "Could not generate a share link. Check your connection and try again.");
+      const shareUrl = await getShareLink(serverClipId!)
+        ?? await getSignedUrl(serverClipId!);
+      if (!shareUrl) {
+        Alert.alert("Share Error", "Could not prepare this clip for sharing. Check your connection and try again.");
         return;
       }
-
-      Alert.alert(
-        "Share clip",
-        "How would you like to share this clip?",
-        [
-          { text: "Share Link", onPress: () => handleShareUrl(shortUrl, clip) },
-          hasLocalFile
-            ? {
-                text: "Share File",
-                onPress: () => shareLocalFile(clip),
-              }
-            : { text: "Save to Phone", onPress: () => handleDownload(clip) },
-          { text: "Cancel", style: "cancel" as const },
-        ],
-      );
+      await handleShareUrl(shareUrl, clip);
     } catch { Alert.alert("Share Error", "Could not prepare share link."); }
     finally { setSharingId(null); }
-  }, [getShareLink, handleShareUrl, handleDownload, shareLocalFile]);
+  }, [getShareLink, getSignedUrl, handleShareUrl, shareLocalFile]);
 
   // ── Delete ─────────────────────────────────────────────────────────────────
   const handleDelete = useCallback((clip: UnifiedClip) => {
@@ -1468,7 +1444,7 @@ export default function DashcamVideosScreen() {
                 label: "Lock Clip",
                 onPress: () => {
                   setMenuClip(null);
-                  lockCurrentClip("manual");
+                  lockSegment(menuClip.id);
                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 },
               } : null,
