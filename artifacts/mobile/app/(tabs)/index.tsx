@@ -56,7 +56,7 @@ import {
 } from "@/utils/tripLocationCache";
 import { reverseGeocode } from "@/utils/geocoding";
 import { useVehicle } from "@/context/VehicleContext";
-import { QUICK_START_KEY } from "@/app/pretrip-check";
+import { DASHCAM_AUTOSTART_KEY, QUICK_START_KEY } from "@/app/pretrip-check";
 import { getLinkedEmail } from "@/utils/backupSync";
 import { apiGet } from "@/utils/apiClient";
 
@@ -152,7 +152,11 @@ export default function HomeScreen() {
   const [heroRefreshKey, setHeroRefreshKey] = useState(0);
   const [roadChannelsEnabled, setRoadChannelsEnabled] = useState(false);
 
-  const { isRecording: dashcamRecording, stopDashcam, requestDashcamPermissions } = useDashcam();
+  const {
+    isRecording: dashcamRecording,
+    stopDashcam,
+    refreshDashcamCameraPermission,
+  } = useDashcam();
   const weather = useWeather(currentLat, currentLng);
 
   const tabBarH = Platform.OS === "web" ? 84 : 96;
@@ -338,13 +342,23 @@ export default function HomeScreen() {
           }
           if (!alive || !notifGranted) return;
 
+          // When dashcam auto-start is enabled, quick start may bypass the
+          // checklist only when camera access is already granted. Drivers who
+          // explicitly disabled auto-start do not need camera access to use
+          // Quick start.
+          const dashcamAutoStart = await AsyncStorage.getItem(DASHCAM_AUTOSTART_KEY);
+          if (Platform.OS !== "web" && dashcamAutoStart !== "0") {
+            const camera = await refreshDashcamCameraPermission();
+            if (!alive || !camera.granted) return;
+          }
+
           // All checks passed — enable quick-start
           quickStartReadyRef.current = true;
           setQuickStartReady(true);
         } catch { /* permissions unavailable — leave ref false */ }
       })();
       return () => { alive = false; };
-    }, []),
+    }, [refreshDashcamCameraPermission]),
   );
 
   const startDriving = useCallback(async () => {
@@ -355,21 +369,14 @@ export default function HomeScreen() {
       router.replace("/(tabs)/drive");
       return;
     }
-    // Request camera + microphone for the dashcam right now, before any navigation.
-    // On first launch this shows the system permission dialogs so they are fully
-    // resolved before the checklist or drive screen renders — meaning the checklist
-    // will reflect the real permission state immediately and the dashcam can start
-    // without a mid-session prompt.  On subsequent calls (already granted) this
-    // returns in under a millisecond and navigation is instant.
-    // Denial is handled gracefully by the dashcam; we never block on the result.
-    await requestDashcamPermissions().catch(() => {});
     if (quickStartReadyRef.current) {
-      // All permissions confirmed — go straight to drive
+      // All permissions, including camera access, are already confirmed.
       router.replace("/(tabs)/drive");
     } else {
+      // Permission explanations and OS prompts are owned by the checklist.
       router.push("/pretrip-check");
     }
-  }, [navTripActive, navTripPaused, requestDashcamPermissions]);
+  }, [navTripActive, navTripPaused]);
 
   const openChecklist = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

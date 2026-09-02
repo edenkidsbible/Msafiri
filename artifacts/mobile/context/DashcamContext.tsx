@@ -464,6 +464,25 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { settingsRef.current = settings; }, [settings]);
   useEffect(() => { cloudQuotaFullRef.current = cloudQuotaFull; }, [cloudQuotaFull]);
 
+  // A native camera can occasionally mount without firing either
+  // onCameraReady or onMountError. Never leave Drive Mode displaying
+  // "Starting…" forever: cancel the pending start and surface the full dashcam
+  // screen so the driver can retry or open permission settings.
+  useEffect(() => {
+    if (!backgroundRecordPending) return;
+    const timeout = setTimeout(() => {
+      if (isRecordingRef.current) return;
+      console.warn("[Dashcam] background start timed out before camera became ready");
+      setBackgroundRecordPending(false);
+      setIsDashcamOpen(true);
+      Alert.alert(
+        "Dashcam couldn't start",
+        "Check camera access and make sure another app is not using the camera, then try again.",
+      );
+    }, 15_000);
+    return () => clearTimeout(timeout);
+  }, [backgroundRecordPending]);
+
   // ── Hydrate from AsyncStorage ──────────────────────────────────────────────
   useEffect(() => {
     (async () => {

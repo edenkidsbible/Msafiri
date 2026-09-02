@@ -108,3 +108,4 @@
 - [Road Channels nearby discovery](road-channels-nearby-discovery.md) — 5 km channels are listen-only unless GPS is on-corridor; report targeting stays separate; bucket live GPS/heading.
 - [Push campaign singleton claims](push-campaign-singleton-claims.md) — time-window guards must atomically claim campaigns across production workers; dedupe recipients by vendor/device identity.
 - [Dashcam force-close durability](dashcam-force-close-durability.md) — commit completed-clip indexes before eviction; recover orphaned document-directory MP4s on launch.
+- [Dashcam permission handoff](dashcam-permission-handoff.md) — checklist owns first-time prompts; quick start requires existing camera grant; pending native starts need a timeout escape.
