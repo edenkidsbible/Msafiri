@@ -69,7 +69,7 @@ import {
 
 let useCameraPermissions: (() => [{ granted: boolean }, () => Promise<{ granted: boolean }>]) | null = null;
 let useMicrophonePermissions: (() => [{ granted: boolean }, () => Promise<{ granted: boolean }>]) | null = null;
-if (Platform.OS !== "web") {
+if (Platform.OS === "ios") {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const mod = require("expo-camera");
   useCameraPermissions = mod.useCameraPermissions ?? null;

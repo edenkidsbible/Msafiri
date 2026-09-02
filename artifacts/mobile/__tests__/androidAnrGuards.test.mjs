@@ -10,6 +10,14 @@ const startupMapSource = fs.readFileSync(
   new URL("../components/MapViewScreen.native.tsx", import.meta.url),
   "utf8",
 );
+const rootLayoutSource = fs.readFileSync(
+  new URL("../app/_layout.tsx", import.meta.url),
+  "utf8",
+);
+const dashcamContextSource = fs.readFileSync(
+  new URL("../context/DashcamContext.tsx", import.meta.url),
+  "utf8",
+);
 
 test("community map markers stop bitmap tracking after their visual state settles", () => {
   assert.match(driveMapSource, /tracksViewChanges=\{!clusterMarkersFrozen\}/);
@@ -38,4 +46,12 @@ test("the Android startup map never tracks every speed-zone marker forever", () 
 test("the Android startup map bounds off-screen native zone markers", () => {
   assert.match(startupMapSource, /MAX_ANDROID_ZONE_MARKERS\s*=\s*80/);
   assert.match(startupMapSource, /\.slice\(0, MAX_ANDROID_ZONE_MARKERS\)/);
+});
+
+test("Android cold start does not eagerly load the dashcam camera module", () => {
+  assert.doesNotMatch(rootLayoutSource, /import DashcamOverlay from/);
+  assert.match(rootLayoutSource, /React\.lazy\(\(\) => import\("@\/components\/DashcamOverlay"\)\)/);
+  assert.match(rootLayoutSource, /if \(!isDashcamOpen && !isRecording && !backgroundRecordPending\) return null/);
+  assert.match(dashcamContextSource, /if \(Platform\.OS === "ios"\) \{/);
+  assert.doesNotMatch(dashcamContextSource, /if \(Platform\.OS !== "web"\) \{[\s\S]{0,120}require\("expo-camera"\)/);
 });

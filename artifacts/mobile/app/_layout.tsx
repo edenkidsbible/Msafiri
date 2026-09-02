@@ -63,9 +63,8 @@ import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import RouteIncidentsPanel from "@/components/RouteIncidentsPanel";
 import { AppProvider, useApp } from "@/context/AppContext";
-import { DashcamProvider } from "@/context/DashcamContext";
+import { DashcamProvider, useDashcam } from "@/context/DashcamContext";
 import { VehicleProvider } from "@/context/VehicleContext";
-import DashcamOverlay from "@/components/DashcamOverlay";
 import { useColors } from "@/hooks/useColors";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
@@ -85,6 +84,18 @@ import { prewarmAlertAudio, resetAlertPlayerCache, setAlertVoiceDisabled } from 
 import { resetAudioMode, setSoundsMuted } from "@/utils/sound";
 import GlobalAlertOverlay from "@/components/GlobalAlertOverlay";
 import { setAlertOwner } from "@/utils/alertOwnership";
+
+const LazyDashcamOverlay = React.lazy(() => import("@/components/DashcamOverlay"));
+
+function DashcamOverlayHost() {
+  const { isDashcamOpen, isRecording, backgroundRecordPending } = useDashcam();
+  if (!isDashcamOpen && !isRecording && !backgroundRecordPending) return null;
+  return (
+    <React.Suspense fallback={null}>
+      <LazyDashcamOverlay />
+    </React.Suspense>
+  );
+}
 
 try {
   initializeRevenueCat();
@@ -686,7 +697,7 @@ function RootLayout() {
                   <AppProvider>
                     <DashcamProvider>
                       <RootLayoutNav />
-                      <DashcamOverlay />
+                      <DashcamOverlayHost />
                     </DashcamProvider>
                   </AppProvider>
                 </VehicleProvider>

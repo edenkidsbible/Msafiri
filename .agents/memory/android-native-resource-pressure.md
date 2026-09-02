@@ -10,3 +10,5 @@ Treat a broad cluster of Android audio, map, graphics, Binder, and system-servic
 **How to apply:** Run Expo dependency and doctor checks before app-code debugging. Keep cached and transient audio ownership distinct, invalidate in-flight playback during resets, release every transient player, and give custom map markers only a short visual-capture window before disabling `tracksViewChanges`.
 
 For map-related cold-start crashes, audit the screen mounted at launch rather than only the drive/navigation map. On Android, never instantiate a country-wide set of off-screen custom markers or start with `tracksViewChanges` enabled across all markers; cap mounted markers near the current region and keep iOS behavior separate.
+
+Root-level feature modules matter even when their UI returns null. Do not statically import camera/video overlays from the root layout or initialize Android camera permission hooks in an always-mounted provider; lazy-load the native feature only when it becomes active.
