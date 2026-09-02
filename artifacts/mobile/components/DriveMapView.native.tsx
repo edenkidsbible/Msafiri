@@ -182,7 +182,7 @@ function SpeedLimitBadge({ speed, bg }: { speed: number; bg: string }) {
 
 // ─── Cluster marker (2+ incidents at same location) ───────────────────────────
 
-function ClusterMarker({ group, now }: { group: ClusterGroup; now: number }) {
+function ClusterMarker({ group }: { group: ClusterGroup }) {
   const { members } = group;
 
   if (members.length === 1) {
@@ -625,12 +625,13 @@ const DriveMapView = forwardRef(function DriveMapView(
   // as a blank dot. We start true, then freeze after 1.5 s — long enough for
   // all static zone icons to paint but short enough to avoid sustained jank.
   const [markersFrozen, setMarkersFrozen] = useState(false);
+  const [clusterMarkersFrozen, setClusterMarkersFrozen] = useState(false);
   useEffect(() => {
     const t = setTimeout(() => {
       if (!mountedRef.current) return;
       navBreadcrumb("map.render", "markers frozen (tracksViewChanges=false)");
       setMarkersFrozen(true);
-    }, 1500);
+    }, 500);
     return () => clearTimeout(t);
   }, []);
 
@@ -1080,6 +1081,20 @@ const DriveMapView = forwardRef(function DriveMapView(
     [communityReports]
   );
   const clusters = useMemo(() => clusterReports(visibleReports), [visibleReports]);
+  const clusterVisualKey = useMemo(
+    () => visibleReports
+      .map((r) => `${r.id}:${r.type}:${r.status ?? ""}:${r.confirmCount ?? 0}:${r.adminVerified ? 1 : 0}:${r.cameraType ?? ""}`)
+      .sort()
+      .join("|"),
+    [visibleReports],
+  );
+  useEffect(() => {
+    setClusterMarkersFrozen(false);
+    const timer = setTimeout(() => {
+      if (mountedRef.current) setClusterMarkersFrozen(true);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [clusterVisualKey]);
 
   // HERE Live Traffic — filter to valid coordinates only; dismissed ones are
   // already excluded by AppContext before reaching here.
@@ -1494,11 +1509,11 @@ const DriveMapView = forwardRef(function DriveMapView(
               key={clusterKey}
               coordinate={{ latitude: group.lat, longitude: group.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={true}
+              tracksViewChanges={!clusterMarkersFrozen}
               onPress={() => openCluster(group)}
               zIndex={10}
             >
-              <ClusterMarker group={group} now={now} />
+              <ClusterMarker group={group} />
             </Marker>
           );
         })}

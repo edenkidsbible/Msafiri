@@ -65,6 +65,7 @@ const playerCache = new Map<string, AudioPlayer>();
 const MAX_CACHED_PLAYERS = 4;
 let currentPlayer: AudioPlayer | null = null;
 let currentPlaybackSubscription: { remove(): void } | null = null;
+let playbackRequestGeneration = 0;
 let focusReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 let voiceDisabled = false;
 const BLUETOOTH_DRAIN_MS = 1_000;
@@ -73,6 +74,27 @@ function cancelPendingFocusRelease(): void {
   if (focusReleaseTimer === null) return;
   clearTimeout(focusReleaseTimer);
   focusReleaseTimer = null;
+}
+
+function isCachedPlayer(player: AudioPlayer): boolean {
+  for (const cached of playerCache.values()) {
+    if (cached === player) return true;
+  }
+  return false;
+}
+
+function stopCurrentPlayer(): void {
+  const player = currentPlayer;
+  currentPlaybackSubscription?.remove();
+  currentPlaybackSubscription = null;
+  currentPlayer = null;
+  if (!player) return;
+  try {
+    player.pause();
+    if (!isCachedPlayer(player)) player.remove();
+  } catch {
+    // Native resources may already have been released by an interruption.
+  }
 }
 
 function watchPlaybackCompletion(player: AudioPlayer): void {
@@ -85,6 +107,13 @@ function watchPlaybackCompletion(player: AudioPlayer): void {
     currentPlaybackSubscription?.remove();
     currentPlaybackSubscription = null;
     currentPlayer = null;
+    if (!isCachedPlayer(player)) {
+      try {
+        player.remove();
+      } catch {
+        // The native player may already have been released.
+      }
+    }
     cancelPendingFocusRelease();
     // Car head units can retain close to a second of decoded A2DP audio. Keep
     // exclusive focus until that tail drains, then restore music only if no
@@ -132,7 +161,9 @@ function getCachedPlayer(key: string): AudioPlayer | null {
 }
 
 export function resetAlertPlayerCache(): void {
+  playbackRequestGeneration += 1;
   cancelPendingFocusRelease();
+  stopCurrentPlayer();
   for (const player of playerCache.values()) {
     try {
       player.pause();
@@ -142,7 +173,6 @@ export function resetAlertPlayerCache(): void {
     }
   }
   playerCache.clear();
-  currentPlayer = null;
 }
 
 export function setAlertVoiceDisabled(disabled: boolean): void {
@@ -155,15 +185,9 @@ export function getAlertVoiceDisabled(): boolean {
 }
 
 export function stopAlertVoice(): void {
+  playbackRequestGeneration += 1;
   cancelPendingFocusRelease();
-  currentPlaybackSubscription?.remove();
-  currentPlaybackSubscription = null;
-  try {
-    currentPlayer?.pause();
-  } catch {
-    // A player may already have been released after an interruption.
-  }
-  currentPlayer = null;
+  stopCurrentPlayer();
 }
 
 export function isAlertVoicePlaying(): boolean {
@@ -180,10 +204,12 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
     expectedGeneration != null &&
     (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
   ) return;
-  stopAlertVoice();
+  const requestGeneration = ++playbackRequestGeneration;
+  stopCurrentPlayer();
   try {
     await duckForAlert();
     if (
+      requestGeneration !== playbackRequestGeneration ||
       expectedGeneration != null &&
       (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
     ) return;
@@ -193,9 +219,19 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
       player.volume = 0.5;
       await player.seekTo(0);
       if (
+        requestGeneration !== playbackRequestGeneration ||
         expectedGeneration != null &&
         (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
-      ) return;
+      ) {
+        if (
+          requestGeneration === playbackRequestGeneration &&
+          currentPlayer === player
+        ) {
+          try { player.pause(); } catch {}
+          currentPlayer = null;
+        }
+        return;
+      }
       watchPlaybackCompletion(player);
       player.play();
       return;
@@ -208,12 +244,21 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
     currentPlayer = remotePlayer;
     remotePlayer.volume = 0.5;
     if (
+      requestGeneration !== playbackRequestGeneration ||
       expectedGeneration != null &&
       (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
-    ) return;
+    ) {
+      if (currentPlayer === remotePlayer) currentPlayer = null;
+      try {
+        remotePlayer.pause();
+        remotePlayer.remove();
+      } catch {}
+      return;
+    }
     watchPlaybackCompletion(remotePlayer);
     remotePlayer.play();
   } catch (error) {
+    if (requestGeneration === playbackRequestGeneration) stopCurrentPlayer();
     console.warn("[androidAlertTts] Playback failed:", error);
   }
 }
@@ -264,20 +309,37 @@ export async function speakAlertPhrase(text: string): Promise<void> {
   if (voiceDisabled || !API_BASE) return;
   const generation = getAlertOwnershipGeneration();
   if (!canDeliverForegroundAlert()) return;
-  stopAlertVoice();
+  const requestGeneration = ++playbackRequestGeneration;
+  stopCurrentPlayer();
   try {
     await duckForAlert();
-    if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
+    if (
+      requestGeneration !== playbackRequestGeneration ||
+      !canDeliverForegroundAlert() ||
+      !isCurrentAlertGeneration(generation)
+    ) return;
     const player = createAudioPlayer(
       { uri: `${API_BASE}/tts?text=${encodeURIComponent(text)}` },
       { downloadFirst: true },
     );
     currentPlayer = player;
     player.volume = 0.5;
-    if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
+    if (
+      requestGeneration !== playbackRequestGeneration ||
+      !canDeliverForegroundAlert() ||
+      !isCurrentAlertGeneration(generation)
+    ) {
+      if (currentPlayer === player) currentPlayer = null;
+      try {
+        player.pause();
+        player.remove();
+      } catch {}
+      return;
+    }
     watchPlaybackCompletion(player);
     player.play();
   } catch (error) {
+    if (requestGeneration === playbackRequestGeneration) stopCurrentPlayer();
     console.warn("[androidAlertTts] Phrase playback failed:", error);
   }
 }

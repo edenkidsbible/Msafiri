@@ -24,6 +24,20 @@ for (const [platform, source] of [["iOS", iosVoice], ["Android", androidVoice]])
   test(`${platform} plays Yna voice alerts at 50 percent volume`, () => {
     assert.match(source, /(?:cached|player|remotePlayer)\.volume\s*=\s*0\.5/);
   });
+
+  test(`${platform} releases transient TTS players instead of leaking native decoders`, () => {
+    assert.match(source, /if \(!isCachedPlayer\(player\)\) player\.remove\(\)/);
+    assert.match(source, /playbackRequestGeneration/);
+    assert.match(source, /requestGeneration !== playbackRequestGeneration/);
+    assert.match(
+      source,
+      /resetAlertPlayerCache\(\)[\s\S]{0,300}playbackRequestGeneration \+= 1;[\s\S]{0,200}stopCurrentPlayer\(\)/,
+    );
+    assert.match(
+      source,
+      /requestGeneration === playbackRequestGeneration &&\s+currentPlayer === (?:cached|player)/,
+    );
+  });
 }
 
 test("foreground alerts pause competing Bluetooth media instead of mixing", () => {

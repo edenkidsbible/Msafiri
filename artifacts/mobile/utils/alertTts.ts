@@ -138,7 +138,9 @@ function getCachedPlayer(key: string): AudioPlayer | null {
  */
 export function resetAlertPlayerCache(): void {
   if (Platform.OS === "web") return;
+  playbackRequestGeneration += 1;
   cancelPendingFocusRelease();
+  stopCurrentPlayer();
   // Stop and discard every cached player. Expo Audio players hold native
   // resources; pausing before dropping the reference prevents them from
   // continuing to play (or holding audio focus) after the cache is cleared.
@@ -149,13 +151,13 @@ export function resetAlertPlayerCache(): void {
     } catch {}
   }
   playerCache.clear();
-  currentPlayer = null;
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
 let currentPlayer: AudioPlayer | null = null;
 let currentPlaybackSubscription: { remove(): void } | null = null;
+let playbackRequestGeneration = 0;
 let focusReleaseTimer: ReturnType<typeof setTimeout> | null = null;
 let voiceDisabled = false;
 const BLUETOOTH_DRAIN_MS = 1_000;
@@ -164,6 +166,27 @@ function cancelPendingFocusRelease(): void {
   if (focusReleaseTimer === null) return;
   clearTimeout(focusReleaseTimer);
   focusReleaseTimer = null;
+}
+
+function isCachedPlayer(player: AudioPlayer): boolean {
+  for (const cached of playerCache.values()) {
+    if (cached === player) return true;
+  }
+  return false;
+}
+
+function stopCurrentPlayer(): void {
+  const player = currentPlayer;
+  currentPlaybackSubscription?.remove();
+  currentPlaybackSubscription = null;
+  currentPlayer = null;
+  if (!player) return;
+  try {
+    player.pause();
+    if (!isCachedPlayer(player)) player.remove();
+  } catch {
+    // Native resources may already have been released by an interruption.
+  }
 }
 
 function watchPlaybackCompletion(player: AudioPlayer): void {
@@ -176,6 +199,13 @@ function watchPlaybackCompletion(player: AudioPlayer): void {
     currentPlaybackSubscription?.remove();
     currentPlaybackSubscription = null;
     currentPlayer = null;
+    if (!isCachedPlayer(player)) {
+      try {
+        player.remove();
+      } catch {
+        // The native player may already have been released.
+      }
+    }
     cancelPendingFocusRelease();
     // Allow the Bluetooth output buffer to drain before changing audio mode.
     focusReleaseTimer = setTimeout(() => {
@@ -196,11 +226,9 @@ export function getAlertVoiceDisabled(): boolean {
 }
 
 export function stopAlertVoice() {
+  playbackRequestGeneration += 1;
   cancelPendingFocusRelease();
-  currentPlaybackSubscription?.remove();
-  currentPlaybackSubscription = null;
-  try { currentPlayer?.pause(); } catch {}
-  currentPlayer = null;
+  stopCurrentPlayer();
 }
 
 /** True while an alert or phrase is actively playing. Used by callers that
@@ -217,9 +245,11 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
     expectedGeneration == null ||
     (canDeliverForegroundAlert() && isCurrentAlertGeneration(expectedGeneration));
   if (!ownsAlert) return;
-  stopAlertVoice();
+  const requestGeneration = ++playbackRequestGeneration;
+  stopCurrentPlayer();
   await duckForAlert(); // ducks BT music during dashcam recording; no-op on web
   if (
+    requestGeneration !== playbackRequestGeneration ||
     expectedGeneration != null &&
     (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
   ) return;
@@ -233,9 +263,19 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
       cached.volume = 0.5;
       await cached.seekTo(0);
       if (
+        requestGeneration !== playbackRequestGeneration ||
         expectedGeneration != null &&
         (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
-      ) return;
+      ) {
+        if (
+          requestGeneration === playbackRequestGeneration &&
+          currentPlayer === cached
+        ) {
+          try { cached.pause(); } catch {}
+          currentPlayer = null;
+        }
+        return;
+      }
       watchPlaybackCompletion(cached);
       cached.play();
     } else {
@@ -247,13 +287,22 @@ async function playKey(key: string, expectedGeneration?: number): Promise<void> 
       currentPlayer = player;
       player.volume = 0.5;
       if (
+        requestGeneration !== playbackRequestGeneration ||
         expectedGeneration != null &&
         (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(expectedGeneration))
-      ) return;
+      ) {
+        if (currentPlayer === player) currentPlayer = null;
+        try {
+          player.pause();
+          player.remove();
+        } catch {}
+        return;
+      }
       watchPlaybackCompletion(player);
       player.play();
     }
   } catch (err) {
+    if (requestGeneration === playbackRequestGeneration) stopCurrentPlayer();
     console.warn("[alertTts] playback failed:", err);
   }
 }
@@ -337,17 +386,34 @@ export async function speakAlertPhrase(text: string): Promise<void> {
   if (voiceDisabled || Platform.OS === "web" || !API_BASE) return;
   const generation = getAlertOwnershipGeneration();
   if (!canDeliverForegroundAlert()) return;
-  stopAlertVoice();
+  const requestGeneration = ++playbackRequestGeneration;
+  stopCurrentPlayer();
   await duckForAlert();
-  if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
+  if (
+    requestGeneration !== playbackRequestGeneration ||
+    !canDeliverForegroundAlert() ||
+    !isCurrentAlertGeneration(generation)
+  ) return;
   try {
     const player = createAudioPlayer({ uri: `${API_BASE}/tts?text=${encodeURIComponent(text)}` });
     currentPlayer = player;
     player.volume = 0.5;
-    if (!canDeliverForegroundAlert() || !isCurrentAlertGeneration(generation)) return;
+    if (
+      requestGeneration !== playbackRequestGeneration ||
+      !canDeliverForegroundAlert() ||
+      !isCurrentAlertGeneration(generation)
+    ) {
+      if (currentPlayer === player) currentPlayer = null;
+      try {
+        player.pause();
+        player.remove();
+      } catch {}
+      return;
+    }
     watchPlaybackCompletion(player);
     player.play();
   } catch (err) {
+    if (requestGeneration === playbackRequestGeneration) stopCurrentPlayer();
     console.warn("[alertTts] speakAlertPhrase failed:", err);
   }
 }
