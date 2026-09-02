@@ -32,6 +32,7 @@ import { useWeather, weatherIcon } from "@/hooks/useWeather";
 import { MarqueeText } from "@/components/MarqueeText";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
+const MAX_ANDROID_ZONE_MARKERS = 80;
 
 // All incident types available in the filter checklist, in display order.
 // "zone" = general speed-zone pins from the zones API (distinct from community reports).
@@ -352,12 +353,54 @@ export default function MapViewScreen() {
   }, [communityReports, selectedTypes]);
 
   const filteredZones = useMemo(() => {
-    if (selectedTypes.size === 0) return allZones;
-    return allZones.filter((z) => selectedTypes.has(z.type));
-  }, [allZones, selectedTypes]);
+    const matching = selectedTypes.size === 0
+      ? allZones
+      : allZones.filter((z) => selectedTypes.has(z.type));
+    if (Platform.OS !== "android" || matching.length <= MAX_ANDROID_ZONE_MARKERS) {
+      return matching;
+    }
+    // The Android home map previously instantiated every Kenya-wide custom
+    // marker at cold start. Keep the closest useful set mounted; creating
+    // hundreds of off-screen native marker bitmaps is a startup OOM/ANR risk.
+    const originLat = currentLat ?? NAIROBI.latitude;
+    const originLng = currentLng ?? NAIROBI.longitude;
+    return [...matching]
+      .sort(
+        (a, b) =>
+          haversineM(originLat, originLng, a.lat, a.lng) -
+          haversineM(originLat, originLng, b.lat, b.lng),
+      )
+      .slice(0, MAX_ANDROID_ZONE_MARKERS);
+  }, [allZones, selectedTypes, currentLat, currentLng]);
 
   const clusters = useMemo(() => clusterReports(filteredReports), [filteredReports]);
   const mapRef = useRef<MapView>(null);
+  const [clusterMarkersFrozen, setClusterMarkersFrozen] = useState(
+    Platform.OS === "android",
+  );
+  const didInitializeClusterMarkersRef = useRef(false);
+
+  // Android rasterizes every custom Marker child into a bitmap while
+  // tracksViewChanges is enabled. Start frozen so cold launch never creates a
+  // continuous bitmap-render burst. On later report visual changes, briefly
+  // re-open capture only for community markers.
+  const clusterVisualKey = useMemo(
+    () => filteredReports
+      .map((r) => `${r.id}:${r.type}:${r.status ?? ""}:${r.confirmCount ?? 0}:${r.adminVerified ? 1 : 0}:${r.cameraType ?? ""}`)
+      .sort()
+      .join("|"),
+    [filteredReports],
+  );
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    if (!didInitializeClusterMarkersRef.current) {
+      didInitializeClusterMarkersRef.current = true;
+      return;
+    }
+    setClusterMarkersFrozen(false);
+    const timer = setTimeout(() => setClusterMarkersFrozen(true), 500);
+    return () => clearTimeout(timer);
+  }, [clusterVisualKey]);
 
   // ── Alert focus (deep-link from the home screen's Nearby Alerts cards) ─────
   // The home screen pushes /(tabs)/map?focusId=&focusLat=&focusLng=&focusTs=.
@@ -556,10 +599,6 @@ export default function MapViewScreen() {
       mapRef.current?.animateCamera({ heading: 0 }, { duration: 400 });
     }
   }, [headingUpMode]);
-
-  // Cluster markers always keep tracksViewChanges={true} — see DriveMapView
-  // for the full explanation. The freeze optimisation caused tap hit-detection
-  // to break whenever communityReports changed (polls, votes, new reports).
 
   const handleReport = async (type: CommunityReport["type"], speedLimit?: number, location?: { lat: number; lng: number }) => {
     setShowReport(false);
@@ -1186,7 +1225,7 @@ export default function MapViewScreen() {
                 title={z.name}
                 description={`${capSpeedLimit(z.speedLimit, vehicle)} km/h — ${z.road}`}
                 opacity={behind ? 0.3 : 1}
-                tracksViewChanges={true}
+                tracksViewChanges={Platform.OS !== "android"}
                 onPress={() => {
                   zoneOpenedAtRef.current = Date.now();
                   setSelectedZone(z);
@@ -1223,7 +1262,9 @@ export default function MapViewScreen() {
               key={clusterKey}
               coordinate={{ latitude: group.lat, longitude: group.lng }}
               anchor={{ x: 0.5, y: 0.5 }}
-              tracksViewChanges={true}
+              tracksViewChanges={
+                Platform.OS === "android" ? !clusterMarkersFrozen : true
+              }
               zIndex={10}
               onPress={() => openCluster(group)}
             >

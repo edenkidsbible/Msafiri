@@ -8,3 +8,5 @@ Treat a broad cluster of Android audio, map, graphics, Binder, and system-servic
 **Why:** A release can appear to have many unrelated crashes when incompatible Expo native modules, unreleased transient audio players, overlapping playback ownership, and continuously tracked custom map markers are jointly exhausting memory and native threads.
 
 **How to apply:** Run Expo dependency and doctor checks before app-code debugging. Keep cached and transient audio ownership distinct, invalidate in-flight playback during resets, release every transient player, and give custom map markers only a short visual-capture window before disabling `tracksViewChanges`.
+
+For map-related cold-start crashes, audit the screen mounted at launch rather than only the drive/navigation map. On Android, never instantiate a country-wide set of off-screen custom markers or start with `tracksViewChanges` enabled across all markers; cap mounted markers near the current region and keep iOS behavior separate.
