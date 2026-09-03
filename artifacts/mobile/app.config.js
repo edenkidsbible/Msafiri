@@ -20,8 +20,9 @@ module.exports = {
     },
     ios: {
       bundleIdentifier: "com.msafirikenya.app",
-      // App Store's current build is 49. With the production profile's
-      // remote autoIncrement, the next iOS build must be 50.
+      // EAS's remote iOS counter is 49, which is the next store release.
+      // Build this release once without incrementing; later production builds
+      // use the profile's remote autoIncrement normally.
       buildNumber: "49",
       supportsTablet: false,
       config: {

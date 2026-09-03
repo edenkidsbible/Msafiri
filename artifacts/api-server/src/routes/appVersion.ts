@@ -99,7 +99,10 @@ router.get("/app/version", async (req: Request, res: Response) => {
     const minRequiredVersion = minRelease?.version ?? null;
     const minRequiredBuild   = minRelease?.buildNumber ?? null;
 
-    const isForceRequired = minRelease
+    // A force update is never inferred from publishing or from the latest
+    // build alone. The Admin release record's explicit isForceUpdate flag is
+    // the only switch that can activate this path.
+    const isForceRequired = minRelease?.isForceUpdate === true
       ? isReleaseNewer(
           clientVersion,
           clientBuild,
