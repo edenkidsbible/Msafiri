@@ -30,8 +30,8 @@ export const pushCampaignsTable = pgTable("push_campaigns", {
   title:       text("title").notNull(),
   body:        text("body").notNull(),
   dataJson:    text("data_json"),
-  type:        text("type").notNull().default("broadcast"), // broadcast | scheduled | daily_morning | daily_evening | engagement | incident
-  status:      text("status").notNull().default("draft"),   // draft | scheduled | sending | sent | failed
+  type:        text("type").notNull().default("broadcast"), // broadcast | scheduled | daily_usage_tip | incident
+  status:      text("status").notNull().default("draft"),   // draft | scheduled | sending | sent | failed | cancelled
   scheduledAt: timestamp("scheduled_at"),
   sentAt:      timestamp("sent_at"),
   sentCount:   integer("sent_count").notNull().default(0),

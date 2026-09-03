@@ -114,3 +114,4 @@
 - [Active-drive map-first layout](active-drive-map-first.md) — map is primary; keep safety actions visible and disclose secondary score/share/details on demand.
 - [Expo Go stale Replit session](expo-go-stale-replit-session.md) — verify the manifest bundle; clear Metro/.expo caches when a normal restart leaves Expo Go on old UI.
 - [Android map styling](android-map-style.md) — Android stays on Google Maps with an Apple-inspired light style; iOS remains native Apple Maps.
+- [Scheduled notification policy](scheduled-notification-policy.md) — one app-usage tip daily at 13:00 EAT; no automatic road-check or overlapping promotional pushes.

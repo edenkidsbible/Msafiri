@@ -4,42 +4,16 @@ import { sendPushNotifications, flushBadTokensFromReceipts, drainForeignExperien
 import { logger } from "../lib/logger.js";
 
 // ─── Daily feature-education rotation ────────────────────────────────────────
-// Three daily notification slots (morning / midday / evening) each show a
-// different app feature so users discover capabilities they may not know exist.
-// Features rotate by day-of-year + slot offset, so on any given day all three
-// slots highlight different features. The 9-feature × 3-slot cycle means every
-// feature surfaces in every slot once every 9 days, then repeats.
-//
-// Slot offsets:
-//   morning  → 0   (feature[dayOfYear % 9])
-//   midday   → 3   (feature[(dayOfYear+3) % 9])
-//   evening  → 6   (feature[(dayOfYear+6) % 9])
-//
-// Friday & Saturday night (9 PM) uses only the three safety-critical features
-// because that audience is about to drive after a night out.
+// Exactly one scheduled promotional notification is allowed per day. It is an
+// app-usage tip sent at 13:00 EAT to recently active devices. Road-status
+// broadcasts and additional morning/evening/night marketing slots are disabled.
+const DAILY_USAGE_TIP_TYPE = "daily_usage_tip";
+const DAILY_USAGE_TIP_HOUR_EAT = 13;
 
-function pickDailyFeatureMsg(slotOffset: number): { title: string; body: string } {
-  const idx = (getDayOfYear() + slotOffset) % FEATURE_CATALOG.length;
+function pickDailyFeatureMsg(): { title: string; body: string } {
+  const idx = getDayOfYear() % FEATURE_CATALOG.length;
   return FEATURE_CATALOG[idx]!.t1;
 }
-
-// Only dashcam, trip sharing, and crash assistant are promoted at 9 PM on
-// Fri/Sat — they're the features most relevant to late-night driving safety.
-const NIGHT_SAFETY_FEATURE_IDS = ["dashcam", "trip_sharing", "crash_assistant"] as const;
-function pickNightSafetyFeatureMsg(): { title: string; body: string } {
-  const idx = getDayOfYear() % NIGHT_SAFETY_FEATURE_IDS.length;
-  const featureId = NIGHT_SAFETY_FEATURE_IDS[idx]!;
-  return FEATURE_CATALOG.find((f) => f.id === featureId)!.t1;
-}
-
-// ─── Weekly engagement nudge (active users only) ─────────────────────────────
-
-const ENGAGEMENT_MESSAGES = [
-  { title: "👀 Thousands rely on reports like yours", body: "Spot a camera, pothole, or checkpoint? Report it in 10 seconds and keep the community sharp." },
-  { title: "📍 You know what's on these roads", body: "Add a report and give drivers behind you an edge. Takes less time than a traffic light." },
-  { title: "🚨 The map is only as good as we report", body: "Fresh eyes on the road right now. See something? Say something — your report could save someone's fine or their life." },
-  { title: "🏆 Other drivers need your reports", body: "Pothole? Checkpoint? Camera? Report it. Your community is counting on people like you." },
-];
 
 // ─── Feature marketing catalog ────────────────────────────────────────────────
 // 9 features × 4 inactivity tiers. Copy escalates from friendly reminder (T1)
@@ -637,68 +611,23 @@ async function nudgeUnlinkedDevices(): Promise<void> {
   logger.info({ campaignType, targets: tokens.length, ok, failed }, "Recovery phone nudge sent");
 }
 
-// ─── Scheduled campaign processor ────────────────────────────────────────────
+// ─── Legacy scheduled-campaign shutdown ──────────────────────────────────────
+// Generic scheduled campaigns previously produced road-status broadcasts and
+// could contain duplicate rows. The current policy permits only the code-owned
+// daily usage-tip campaign, so pending generic campaigns are cancelled without
+// delivery. Manually triggered transactional notifications are separate.
+async function cancelPendingScheduledCampaigns(): Promise<void> {
+  const cancelled = await db
+    .update(pushCampaignsTable)
+    .set({ status: "cancelled" })
+    .where(eq(pushCampaignsTable.status, "scheduled"))
+    .returning({ id: pushCampaignsTable.id });
 
-async function processScheduledCampaigns(): Promise<void> {
-  const now = new Date();
-
-  const due = await db
-    .select()
-    .from(pushCampaignsTable)
-    .where(
-      and(
-        eq(pushCampaignsTable.status, "scheduled"),
-        lte(pushCampaignsTable.scheduledAt, now)
-      )
+  if (cancelled.length > 0) {
+    logger.warn(
+      { count: cancelled.length },
+      "Cancelled pending scheduled campaigns under daily-usage-tip-only policy",
     );
-
-  for (const campaign of due) {
-    try {
-      // Atomically claim the row. When several production workers poll at the
-      // same time, only the worker that changes scheduled → sending may send.
-      const claimed = await db
-        .update(pushCampaignsTable)
-        .set({ status: "sending" })
-        .where(
-          and(
-            eq(pushCampaignsTable.id, campaign.id),
-            eq(pushCampaignsTable.status, "scheduled"),
-          ),
-        )
-        .returning({ id: pushCampaignsTable.id });
-      if (claimed.length === 0) continue;
-
-      const tokenRows = await db.execute(sql`
-        SELECT DISTINCT ON (COALESCE(vendor_id, device_id)) token
-        FROM push_tokens
-        ORDER BY COALESCE(vendor_id, device_id), last_seen_at DESC
-      `);
-      const tokens = tokenRows.rows as { token: string }[];
-
-      const messages = tokens.map((t) => ({
-        to: t.token,
-        title: campaign.title,
-        body: campaign.body,
-        sound: "default" as const,
-        channelId: "msafiri_general",
-        data: campaign.dataJson ? (JSON.parse(campaign.dataJson) as Record<string, unknown>) : {},
-      }));
-
-      const { ok, failed } = await sendPushNotifications(messages);
-
-      await db
-        .update(pushCampaignsTable)
-        .set({ status: "sent", sentAt: new Date(), sentCount: ok, failedCount: failed })
-        .where(eq(pushCampaignsTable.id, campaign.id));
-
-      logger.info({ id: campaign.id, ok, failed }, "Scheduled push campaign sent");
-    } catch (err) {
-      await db
-        .update(pushCampaignsTable)
-        .set({ status: "failed" })
-        .where(eq(pushCampaignsTable.id, campaign.id));
-      logger.error({ err, id: campaign.id }, "Failed to send scheduled push campaign");
-    }
   }
 }
 
@@ -711,64 +640,17 @@ function toEat(now: Date): Date {
   return new Date(now.getTime() + 3 * 60 * 60 * 1000);
 }
 
-// Friday(5) & Saturday(6) nights are Kenya's two big going-out nights — the
-// ones where safety features (dashcam, trip sharing, crash assistant) are
-// most worth promoting.
-function isNightSafetyDay(eatDay: number): boolean {
-  return eatDay === 5 || eatDay === 6;
-}
-
 async function checkDailyTriggers(): Promise<void> {
   const now = new Date();
   const eat = toEat(now);
-  const eatDay = eat.getUTCDay();
   const eatHour = eat.getUTCHours();
   const min = eat.getUTCMinutes();
 
-  // 6:00–6:05 AM EAT → morning feature education (active users only)
-  if (eatHour === 6 && min < 5) {
-    const msg = pickDailyFeatureMsg(0);
-    await sendActiveCampaign("daily_morning", msg.title, msg.body);
+  // 13:00–13:05 EAT → the day's only scheduled promotional notification.
+  if (eatHour === DAILY_USAGE_TIP_HOUR_EAT && min < 5) {
+    const msg = pickDailyFeatureMsg();
+    await sendActiveCampaign(DAILY_USAGE_TIP_TYPE, msg.title, msg.body);
   }
-
-  // 1:00–1:05 PM EAT → midday feature education (active users only)
-  if (eatHour === 13 && min < 5) {
-    const msg = pickDailyFeatureMsg(3);
-    await sendActiveCampaign("daily_midday", msg.title, msg.body);
-  }
-
-  // 4:30–4:35 PM EAT → evening feature education (active users only)
-  if (eatHour === 16 && min >= 30 && min < 35) {
-    const msg = pickDailyFeatureMsg(6);
-    await sendActiveCampaign("daily_evening", msg.title, msg.body);
-  }
-
-  // 9:00–9:05 PM EAT, Friday & Saturday only → night-safety feature education
-  if (isNightSafetyDay(eatDay) && eatHour === 21 && min < 5) {
-    const msg = pickNightSafetyFeatureMsg();
-    await sendActiveCampaign("weekend_night_safety", msg.title, msg.body);
-  }
-
-  // Wednesday 12:00–12:05 PM EAT → weekly reporting engagement nudge
-  if (eatDay === 3 && eatHour === 12 && min < 5) {
-    const msg = pickMessage(ENGAGEMENT_MESSAGES);
-    await sendActiveCampaign("engagement", msg.title, msg.body);
-  }
-
-  // Monday 9:00–9:05 AM EAT → weekly nudge to devices without a recovery phone
-  if (eatDay === 1 && eatHour === 9 && min < 5) {
-    await nudgeUnlinkedDevices();
-  }
-
-  // 10:00–10:05 AM EAT daily → re-engagement for devices inactive 3+ days
-  // (per-device cooldown inside checkReengagement means this is safe to run
-  // every day — devices that were just re-engaged won't be hit again for 4 days)
-  if (eatHour === 10 && min < 5) {
-    await checkReengagement();
-  }
-
-  // Every cycle → post-trial nudge sequence (self-gated by nudge_stage per device)
-  await sendTrialExpiredNudges();
 }
 
 // ─── Startup catch-up ─────────────────────────────────────────────────────────
@@ -787,7 +669,6 @@ const MAX_CATCHUP_LAG_MIN = 90;
 async function catchUpMissedTriggers(): Promise<void> {
   const now = new Date();
   const eat = toEat(now);
-  const eatDay = eat.getUTCDay();
   const eatHour = eat.getUTCHours();
   const eatMin = eat.getUTCMinutes();
   // Total EAT minutes since midnight — used to compare against window start times.
@@ -798,44 +679,10 @@ async function catchUpMissedTriggers(): Promise<void> {
     eatTotalMin > windowCloseMin &&
     eatTotalMin - windowCloseMin <= MAX_CATCHUP_LAG_MIN;
 
-  // Morning window closed at 06:05 EAT
-  if (freshEnough(6 * 60 + 5)) {
-    const msg = pickDailyFeatureMsg(0);
-    await sendActiveCampaign("daily_morning", msg.title, msg.body);
-  }
-
-  // Midday window closed at 13:05 EAT
-  if (freshEnough(13 * 60 + 5)) {
-    const msg = pickDailyFeatureMsg(3);
-    await sendActiveCampaign("daily_midday", msg.title, msg.body);
-  }
-
-  // Evening window closed at 16:35 EAT
-  if (freshEnough(16 * 60 + 35)) {
-    const msg = pickDailyFeatureMsg(6);
-    await sendActiveCampaign("daily_evening", msg.title, msg.body);
-  }
-
-  // Weekend night safety window closed at 21:05 EAT (Fri & Sat only)
-  if (isNightSafetyDay(eatDay) && freshEnough(21 * 60 + 5)) {
-    const msg = pickNightSafetyFeatureMsg();
-    await sendActiveCampaign("weekend_night_safety", msg.title, msg.body);
-  }
-
-  // Wednesday engagement window closed at 12:05 EAT
-  if (eatDay === 3 && freshEnough(12 * 60 + 5)) {
-    const msg = pickMessage(ENGAGEMENT_MESSAGES);
-    await sendActiveCampaign("engagement", msg.title, msg.body);
-  }
-
-  // Monday recovery phone nudge window closed at 09:05 EAT
-  if (eatDay === 1 && freshEnough(9 * 60 + 5)) {
-    await nudgeUnlinkedDevices();
-  }
-
-  // Re-engagement window closed at 10:05 EAT
-  if (freshEnough(10 * 60 + 5)) {
-    await checkReengagement();
+  // The sole daily usage-tip window closed at 13:05 EAT.
+  if (freshEnough(DAILY_USAGE_TIP_HOUR_EAT * 60 + 5)) {
+    const msg = pickDailyFeatureMsg();
+    await sendActiveCampaign(DAILY_USAGE_TIP_TYPE, msg.title, msg.body);
   }
 }
 
@@ -1033,9 +880,8 @@ async function markExpiredTrips(): Promise<void> {
 // ─── Job entry point ──────────────────────────────────────────────────────────
 
 async function runJob(): Promise<void> {
-  await processScheduledCampaigns();
+  await cancelPendingScheduledCampaigns();
   await checkDailyTriggers();
-  await checkPlannedTrips();
   await markExpiredTrips();
 }
 
