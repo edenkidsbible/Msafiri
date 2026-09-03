@@ -17,7 +17,6 @@ import { seedOpsData } from "./startup/seedOpsData";
 import { retryPendingCarImages, retryPendingLogos } from "./routes/customVehicles.js";
 import { startHereTrafficJob } from "./jobs/hereTraffic";
 import { startPromoteScheduledReleasesJob } from "./jobs/promoteScheduledReleases";
-import { startClusterHazardsJob } from "./jobs/clusterHazards";
 import { startPurgePhotoOrphansJob } from "./jobs/purgePhotoOrphans";
 import { startAbandonDraftAccidentsJob } from "./jobs/abandonDraftAccidents";
 import { startCreatorMonitoringJob } from "./jobs/creatorMonitoring";
@@ -137,7 +136,6 @@ const server = app.listen(port, async (err) => {
   startDailyBackupJob();
   startHereTrafficJob();
   startPromoteScheduledReleasesJob();
-  startClusterHazardsJob();
   startPurgePhotoOrphansJob();
   startAbandonDraftAccidentsJob();
   startCreatorMonitoringJob();

@@ -79,6 +79,8 @@ export interface CommunityReport {
   speedLimit?: number;
   roadName?: string;
   adminVerified?: boolean;
+  /** Server-side origin. Automatic sensor reports are disabled and never displayed. */
+  source?: "manual" | "auto" | string;
   /** Camera subtype: "fixed" = permanently installed, "mobile" = temporary/moving checkpoint.
    *  Null/undefined for non-camera types and legacy camera reports (treat as "fixed"). */
   cameraType?: "fixed" | "mobile";
@@ -585,8 +587,15 @@ function genId(): string {
 //    (hazard/pothole/etc.).  Reports that survived beyond that are either
 //    offline-only leftovers or stale confirmed reports from a prior session;
 //    the next GET /reports will re-populate anything still active.
+function isAutoDetectedReport(report: CommunityReport): boolean {
+  return report.source === "auto" || report.roadName?.startsWith("Auto-detected:") === true;
+}
+
 function pruneReportCache(reports: CommunityReport[], now: number): CommunityReport[] {
   return reports.filter((r) => {
+    // Auto-detected hazard reporting is disabled. Purge both current source-tagged
+    // entries and legacy cached rows from before the API exposed source.
+    if (isAutoDetectedReport(r)) return false;
     // Never evict the user's own camera/report that is still awaiting admin review.
     if (r.isOwn && r.status === "pending_review") return true;
     // Denied and expired entries are no longer visible anywhere; remove after 2 h.
@@ -3057,12 +3066,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ? `/reports?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}&radius=50000`
         : `/reports`;
       const data = await apiGet<{ reports: Array<{
-        id: string; type: string; lat: number; lng: number;
+        id: string; type: string; source?: string; lat: number; lng: number;
         status: string; confirmCount: number; denyCount: number;
         createdAt: number; expiresAt: number | null;
         speedLimit: number | null; roadName: string | null; adminVerified: boolean;
       }> }>(url);
-      const remote: CommunityReport[] = data.reports.map((r) => ({
+      const remote: CommunityReport[] = data.reports
+        .filter((r) => r.source !== "auto")
+        .map((r) => ({
         id: r.id,
         type: r.type as CommunityReport["type"],
         lat: r.lat,
@@ -3076,6 +3087,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         speedLimit: r.speedLimit ?? undefined,
         roadName: r.roadName ?? undefined,
         adminVerified: r.adminVerified,
+        source: r.source ?? "manual",
         isOwn: false,
         observationContext: (r as any).observationContext as CommunityReport["observationContext"] ?? "on_location",
         observedAt: (r as any).observedAt ?? undefined,
@@ -3949,6 +3961,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const now = Date.now();
     const compact: BgReportEntry[] = communityReports
       .filter((r) => {
+        if (isAutoDetectedReport(r)) return false;
         if (r.type === "clear") return false;
         if (r.status === "denied" || r.status === "expired" || r.status === "admin_review") return false;
         // Hard 24-hour age cap — matches pruneReportCache in AppContext
@@ -4032,30 +4045,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setDashcamActiveState(v);
   }, []);
 
-  // ── Hazard event batch refs ───────────────────────────────────────────────
-  // Batched silently during drives; flushed to /telemetry/braking-events every
-  // 60 s (or when navigation ends). No driver interaction required.
-  const hazardBatchRef   = useRef<Array<{ eventType: string; lat: number; lng: number; speedKmh: number; gForce: number }>>([]);
-  const hazardLastFiredRef = useRef<Record<string, number>>({});  // type → ms timestamp
-  const hazardFlushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const flushHazardBatch = useCallback(async () => {
-    const batch = hazardBatchRef.current.splice(0);
-    if (batch.length === 0) return;
-    const did = deviceIdRef.current;
-    if (!did) return;
-    apiPost("/telemetry/braking-events", {
-      events: batch.map((e) => ({ ...e, deviceId: did })),
-    }).catch(() => {}); // fire-and-forget, never surface to user
-  }, []);
-
-  // ── Accelerometer — crash detection + silent hazard detection ────────────
+  // ── Accelerometer — crash detection ─────────────────────────────────────
   // Subscribe at 20 Hz whenever dashcam is active.
   // Crash detection fires when:
   //   peak net-G in the 2s window > threshold  AND
   //   GPS speed dropped from ≥20 km/h to ≤5 km/h within 2s
-  // Hazard events (hard_braking, pothole, swerve) are classified separately
-  // and batch-posted silently.
   useEffect(() => {
     if (Platform.OS === "web") return;
     if (!dashcamActive) {
@@ -4063,15 +4057,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Start 60-second flush timer
-    if (hazardFlushTimerRef.current) clearInterval(hazardFlushTimerRef.current);
-    hazardFlushTimerRef.current = setInterval(() => { flushHazardBatch(); }, 60_000);
-
     const G_THRESHOLD: Record<"low" | "medium" | "high", number> = {
       low: 4.5, medium: 3.5, high: 2.8,
     };
-    const HAZARD_DEBOUNCE_MS = 5_000;
-
     Accelerometer.setUpdateInterval(50); // 20 Hz
     const sub = Accelerometer.addListener(({ x, y, z }) => {
       const rawG    = Math.sqrt(x * x + y * y + z * z);
@@ -4168,46 +4156,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // ── Hazard event classification (silent, no driver interaction) ───
-      const now = Date.now();
-      const lat = currentLatRef.current;
-      const lng = currentLngRef.current;
-      if (lat == null || lng == null) return;
-
-      const canFire = (type: string) =>
-        !((hazardLastFiredRef.current[type] ?? 0) + HAZARD_DEBOUNCE_MS > now);
-
-      const speedEntries = speedWindowRef.current.filter((s) => now - s.t <= 2500);
-      const latestKmh   = speedEntries.length > 0 ? speedEntries[speedEntries.length - 1]!.kmh : 0;
-      const oldestKmh   = speedEntries.length > 1 ? speedEntries[0]!.kmh : latestKmh;
-      const speedDrop   = oldestKmh - latestKmh; // positive = decelerating
-
-      // hard_braking: significant longitudinal deceleration + speed drop > 25 km/h in 2.5 s
-      const longG = Math.abs(y); // phone longitudinal axis
-      if (longG > 1.5 && speedDrop > 25 && canFire("hard_braking")) {
-        hazardLastFiredRef.current["hard_braking"] = now;
-        hazardBatchRef.current.push({ eventType: "hard_braking", lat, lng, speedKmh: latestKmh, gForce: longG });
-      }
-      // pothole: vertical spike > 2.5g, speed change < 10 km/h
-      // vertG is already computed above (used for crash vd check) — reuse it.
-      if (vertG > 2.5 && Math.abs(speedDrop) < 10 && canFire("pothole")) {
-        hazardLastFiredRef.current["pothole"] = now;
-        hazardBatchRef.current.push({ eventType: "pothole", lat, lng, speedKmh: latestKmh, gForce: vertG });
-      }
-      // swerve: lateral spike > 1.8g
-      const latG = Math.abs(x);
-      if (latG > 1.8 && canFire("swerve")) {
-        hazardLastFiredRef.current["swerve"] = now;
-        hazardBatchRef.current.push({ eventType: "swerve", lat, lng, speedKmh: latestKmh, gForce: latG });
-      }
     });
 
     return () => {
       sub.remove();
-      if (hazardFlushTimerRef.current) { clearInterval(hazardFlushTimerRef.current); hazardFlushTimerRef.current = null; }
-      flushHazardBatch(); // flush remaining events on drive end
     };
-  }, [dashcamActive, flushHazardBatch]);
+  }, [dashcamActive]);
 
   const clearAllData = useCallback(async () => {
     await AsyncStorage.multiRemove([

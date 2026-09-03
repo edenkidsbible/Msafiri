@@ -1066,6 +1066,8 @@ const DriveMapView = forwardRef(function DriveMapView(
   const visibleReports = useMemo(
     () => communityReports.filter(
       (r) =>
+        r.source !== "auto" &&
+        !r.roadName?.startsWith("Auto-detected:") &&
         // Guard: skip any report with a null, undefined, or NaN coordinate —
         // a corrupt record would otherwise crash the Marker render.
         typeof r.lat === "number" && Number.isFinite(r.lat) &&

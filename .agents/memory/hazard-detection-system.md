@@ -3,20 +3,24 @@ name: Auto Hazard Detection System
 description: Architecture of the silent road hazard detection pipeline (braking events → clustering job → auto community reports)
 ---
 
-# Auto Hazard Detection System
+# Auto Hazard Detection System (Disabled)
 
 ## Rule
-The pipeline is: mobile accelerometer → `POST /telemetry/braking-events` (batch) → `braking_events` table → `clusterHazards` job (every 30 min) → `hazard_clusters` + `community_reports` with `source='auto'`.
+Automatic hazard detection is disabled. Driver feeds must exclude every
+`community_reports` row with `source='auto'`; older cached rows are also
+identified by the legacy `Auto-detected:` road-name prefix. Mobile must not
+collect or upload hard-braking, pothole, or swerve sensor batches.
 
-**Why:** Drivers become passive road sensors without any UI interaction; network effect makes the map smarter over time.
+**Why:** Sensor-generated pothole/hazard pins were removed from the map by product
+decision. Only explicit driver-submitted community reports should appear.
 
 ## How to apply
-- Mobile only captures events when `navigationActive || dashcamActive`; events are batched in `hazardBatchRef` and flushed every 60s or on drive end via `flushHazardBatch()`.
-- Three event types: `hard_braking` (|y|>1.5g + speed drop >25 km/h in 2.5s), `pothole` (|z-9.8|>2.5g + speed change <10 km/h), `swerve` (|x|>1.8g). Debounce: 5s per type.
-- Clustering is in-process greedy (O(n·k)); threshold = 5 distinct devices within 60m radius over 7 days.
-- Auto-created reports have `source='auto'` and `deviceId='auto-detection-system'`; they appear on the driver map immediately.
-- Admin "Auto-Detected" tab in Reports page: separate `useQuery` with `authFetch` using `?source=auto` param (avoids OpenAPI type constraints).
-- Hazard stats card on dashboard: `GET /admin/hazard-stats` (inside `admin/stats.ts`).
+- Keep the legacy braking-events endpoint as a successful no-op so old clients do
+  not retry, while storing nothing.
+- Do not restart or recreate the clustering background job.
+- Preserve manual pothole and hazard reporting.
+- Historical auto-detection records may remain visible to administrators for
+  audit purposes, but never in driver-facing map/report/alert feeds.
 
 ## Schema
 - `braking_events` — id, device_id, event_type, lat, lng, speed_kmh, g_force, heading, created_at

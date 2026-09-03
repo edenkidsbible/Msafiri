@@ -224,6 +224,7 @@ router.get("/reports", async (req: Request, res: Response) => {
     const toReport = (r: typeof communityReportsTable.$inferSelect) => ({
       id: r.id,
       type: r.type,
+      source: r.source,
       lat: r.lat,
       lng: r.lng,
       status: r.status,
@@ -249,7 +250,7 @@ router.get("/reports", async (req: Request, res: Response) => {
       const rows = await db
         .select()
         .from(communityReportsTable)
-        .where(and(isActive(), hasCoordinates()));
+        .where(and(isActive(), hasCoordinates(), ne(communityReportsTable.source, "auto")));
       return res.json({ reports: rows.map(toReport) });
     }
 
@@ -264,6 +265,7 @@ router.get("/reports", async (req: Request, res: Response) => {
         and(
           isActive(),
           hasCoordinates(),
+          ne(communityReportsTable.source, "auto"),
           gte(communityReportsTable.lat, lat - latDelta),
           sql`${communityReportsTable.lat} <= ${lat + latDelta}`,
           gte(communityReportsTable.lng, lng - lngDelta),

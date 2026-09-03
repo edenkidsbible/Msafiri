@@ -348,8 +348,11 @@ export default function MapViewScreen() {
   const [filterPickerOpen, setFilterPickerOpen] = useState(false);
 
   const filteredReports = useMemo(() => {
-    if (selectedTypes.size === 0) return communityReports;
-    return communityReports.filter((r) => selectedTypes.has(r.type));
+    const driverVisibleReports = communityReports.filter(
+      (r) => r.source !== "auto" && !r.roadName?.startsWith("Auto-detected:"),
+    );
+    if (selectedTypes.size === 0) return driverVisibleReports;
+    return driverVisibleReports.filter((r) => selectedTypes.has(r.type));
   }, [communityReports, selectedTypes]);
 
   const filteredZones = useMemo(() => {

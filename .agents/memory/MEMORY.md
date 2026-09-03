@@ -5,7 +5,7 @@
 - [Custom vehicle display name pitfalls](custom-vehicle-display-name.md) — known-make+custom-model shows "My Vehicle"; priority order + vehicle-setup.tsx ID fix.
 - [Wikipedia car image processing](wikipedia-car-image-processing.md) — rembg u2netp AI via temp files (NOT stdin); resize to 800px first; transparent PNG; never flatten to white.
 - [Course audio generation](course-audio-generation.md) — Keli/Flash v2.5 TTS, GCS upload (no public ACL), streamed via /api/course/audio/:slug, AudioPlayer component in mobile lesson screen.
-- [Auto Hazard Detection System](hazard-detection-system.md) — braking_events → clusterHazards job (30min) → source='auto' community reports; admin Auto-Detected tab uses plain authFetch not generated hook.
+- [Auto Hazard Detection disabled](hazard-detection-system.md) — never collect sensor batches or show source='auto' reports to drivers; manual pothole/hazard reports remain enabled.
 - [Crash Assistant feature](crash-assistant.md) — full 7-step accident doc flow; pdfkit must be esbuild external; photo upload via blob PUT; apiPatch for PATCH calls; date-fns needs mobile install.
 - [Community report "Gone now" single-vote quirk](report-deny-single-vote.md) — one deny vote denies a report instantly (no threshold); distinct from the 3-confirm protection on self-delete.
 - [expo-router react-native-maps web fix](expo-router-rnmaps-web.md) — .native.tsx files in app/ dir still bundled on web by require.context; move native-only components to components/ with platform extensions instead.
