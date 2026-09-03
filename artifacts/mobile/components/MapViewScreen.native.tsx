@@ -154,6 +154,13 @@ const ZONE_MARKER: Record<string, { ioniconName: React.ComponentProps<typeof Ion
   zone:   { ioniconName: "speedometer", bg: "#E65100" },
 };
 
+const MOBILE_CAMERA_COLOR = "#00A845";
+const FIXED_CAMERA_COLOR = "#E53935";
+
+function cameraMarkerColor(cameraType?: string): string {
+  return cameraType === "mobile" ? MOBILE_CAMERA_COLOR : FIXED_CAMERA_COLOR;
+}
+
 // Legend: all 12 community-report types + static Zone entry
 const LEGEND_ITEMS: Array<{ key: string; label: string; emoji: string }> = [
   ...INCIDENT_TYPE_ORDER.map((t) => ({
@@ -232,12 +239,13 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
     // markers — red circle with a camera icon, not the emoji blob used for
     // transient community incidents.
     if (r.type === "camera") {
+      const cameraBg = cameraMarkerColor(r.cameraType);
       return (
         <View
           collapsable={false}
           style={{
             width: 32, height: 32, borderRadius: 16,
-            backgroundColor: "#E53935",
+            backgroundColor: cameraBg,
             alignItems: "center", justifyContent: "center",
             borderWidth: 2.5, borderColor: "#FFF",
             shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
@@ -263,12 +271,13 @@ function MapClusterMarker({ group, now }: { group: ClusterGroup; now: number }) 
   // and gives the user a clear "N reports here" signal.
   const lead = members[0];
   if (lead.type === "camera") {
+    const cameraBg = cameraMarkerColor(lead.cameraType);
     return (
       <View collapsable={false} style={{ position: "relative" }}>
         <View
           style={{
             width: 32, height: 32, borderRadius: 16,
-            backgroundColor: "#E53935",
+            backgroundColor: cameraBg,
             alignItems: "center", justifyContent: "center",
             borderWidth: 2.5, borderColor: "#FFF",
             shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
@@ -1255,6 +1264,8 @@ export default function MapViewScreen() {
           // ── Crash guard ── skip any zone with a missing coordinate ──────────
           if (z.lat == null || z.lng == null || isNaN(z.lat) || isNaN(z.lng)) return null;
           const m = ZONE_MARKER[z.type] ?? ZONE_MARKER.zone;
+          const markerBg = z.type === "camera" ? cameraMarkerColor(z.cameraType) : m.bg;
+          const isMobileCamera = z.type === "camera" && z.cameraType === "mobile";
           const behind = isPinBehind(z.lat, z.lng);
           return (
             <React.Fragment key={z.id}>
@@ -1271,16 +1282,16 @@ export default function MapViewScreen() {
                 }}
               >
                 {z.isStretchEndpoint ? (
-                  <SpeedLimitBadge speed={capSpeedLimit(z.speedLimit, vehicle)} bg={m.bg} />
+                  <SpeedLimitBadge speed={capSpeedLimit(z.speedLimit, vehicle)} bg={markerBg} />
                 ) : (
-                  <MarkerIcon ioniconName={m.ioniconName} bg={m.bg} />
+                  <MarkerIcon ioniconName={m.ioniconName} bg={markerBg} />
                 )}
               </Marker>
               <Circle
                 center={{ latitude: z.lat, longitude: z.lng }}
                 radius={200}
-                strokeColor={z.type === "camera" ? "#E5393540" : "#1565C040"}
-                fillColor={z.type === "camera" ? "#E5393910" : "#1565C010"}
+                strokeColor={z.type === "camera" ? (isMobileCamera ? "#00A84540" : "#E5393540") : "#1565C040"}
+                fillColor={z.type === "camera" ? (isMobileCamera ? "#00A84510" : "#E5393910") : "#1565C010"}
                 strokeWidth={1}
               />
             </React.Fragment>

@@ -340,10 +340,9 @@ export default function DriveScreen() {
   const [driveControlsHidden, setDriveControlsHidden] = useState(false);
   // Destination picker modal — opened from the pre-trip idle screen
   const [showDestPicker, setShowDestPicker] = useState(false);
-  // When true: hide pre-trip screen, show map + route preview sheet so the
-  // driver can inspect alt routes / incidents before confirming the trip.
-  // Set when the driver taps "Start" on the pre-trip screen with a destination,
-  // OR when the screen gains focus with a destination already set (Map tab flow).
+  // Legacy route-preview flag retained only for safe cleanup of stale state from
+  // older sessions. New destination flows always use /pretrip-check followed by
+  // the current idle/start screen; they must never reopen the removed preview.
   const [showRoutePreviewMode, setShowRoutePreviewMode] = useState(false);
   const driveMapRef = useRef<DriveMapViewHandle>(null);
   // Kept above Road Channels callbacks so their guard always reads live state.
@@ -1540,7 +1539,10 @@ export default function DriveScreen() {
 
   const overLimit  = currentSpeedLimit != null && currentSpeed > currentSpeedLimit;
   const hasRoute   = !!activeRoute;
-  const isMapMode  = hasRoute && !showResults;
+  // A route calculated in the background is not enough to enter map mode.
+  // Requiring an active trip/countdown prevents the retired route-preview page
+  // from resurfacing immediately after a Maps destination selection.
+  const isMapMode  = (tripActive || countdownValue !== null) && hasRoute && !showResults;
 
   // alertOverlayPulse ref declared early (rule of hooks: same order every render).
   // The driving useEffect lives after primaryAlert's useMemo below.
@@ -3258,7 +3260,7 @@ export default function DriveScreen() {
           (empty steps, NaN distance, etc.) hides the sheet rather than
           crashing the whole drive screen.
       ══════════════════════════════════════════════════════════════════ */}
-      {isMapMode && !tripActive && activeRoute && (<ErrorBoundary FallbackComponent={() => null}>
+      {showRoutePreviewMode && isMapMode && !tripActive && countdownValue === null && activeRoute && (<ErrorBoundary FallbackComponent={() => null}>
         <View style={[styles.routeSheet, {
           backgroundColor: bg,
           paddingBottom: bottomBase,
