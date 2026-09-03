@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
+import ANDROID_APPLE_MAP_STYLE from "@/constants/androidAppleMapStyle";
 import { ActivityIndicator, Alert, Animated, Dimensions, FlatList, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { MAP_CHIPS, CATEGORIES, type QueryCategory, type POIResult, fetchNearbyPOIs, formatDist } from "@/utils/nearbyPlaces";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import MapView, { Circle, Marker, Polyline } from "react-native-maps";
+import MapView, { Circle, Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
 import { useLiveLocation } from "@/context/LocationContext";
@@ -1220,7 +1221,12 @@ export default function MapViewScreen() {
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        customMapStyle={c.isDark ? DARK_MAP_STYLE : []}
+        provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
+        customMapStyle={
+          Platform.OS === "android"
+            ? (c.isDark ? DARK_MAP_STYLE : ANDROID_APPLE_MAP_STYLE)
+            : []
+        }
         initialRegion={
           currentLat && currentLng
             ? { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.08, longitudeDelta: 0.08 }

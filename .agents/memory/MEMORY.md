@@ -113,3 +113,4 @@
 - [Speed-bump infrastructure alerts](speed-bump-infrastructure-alerts.md) — permanent OSM catalogue stays separate from incidents and speed zones; alert only ahead on the chosen route.
 - [Active-drive map-first layout](active-drive-map-first.md) — map is primary; keep safety actions visible and disclose secondary score/share/details on demand.
 - [Expo Go stale Replit session](expo-go-stale-replit-session.md) — verify the manifest bundle; clear Metro/.expo caches when a normal restart leaves Expo Go on old UI.
+- [Android map styling](android-map-style.md) — Android stays on Google Maps with an Apple-inspired light style; iOS remains native Apple Maps.
