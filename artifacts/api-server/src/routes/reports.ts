@@ -809,11 +809,9 @@ const DENY_THRESHOLD = 1;
 // automatically removed from the map (status "denied") so stale incidents
 // disappear without requiring admin action.
 //
-// Camera reports: cameras are fixed physical infrastructure that should not
-// silently vanish because one or two confused drivers tapped "Gone now". Instead
-// the report is moved to "admin_review" so a human can confirm or reject the
-// removal. The camera stays visible on the map (isActive() includes admin_review)
-// until an admin acts.
+// Fixed/unclassified camera reports are infrastructure and move to
+// "admin_review" instead of silently vanishing. Mobile cameras are temporary,
+// so "Gone now" removes them immediately like other temporary incidents.
 router.post("/reports/:id/deny", async (req: Request, res: Response) => {
   try {
     const id = req.params["id"] as string;
@@ -834,8 +832,8 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
     // Owner tapping "Gone now" on their own report = owner-resolve, not a vote.
     // Non-camera reports resolve immediately (status "denied") unless the
     // community has confirmed it 3+ times — the same protection the self-delete
-    // flow uses. Own camera reports fall through to the normal deny flow below,
-    // which routes them to admin_review (cameras never silently vanish).
+    // flow uses. Camera reports fall through to the normal deny flow below,
+    // which distinguishes temporary mobile cameras from fixed infrastructure.
     if (report.deviceId === deviceId && report.type !== "camera") {
       if ((report.confirmCount ?? 1) >= 3) {
         return res.status(403).json({
@@ -860,7 +858,8 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
     //   jsonb_array_length(denied_by) + 1   == new distinct-voter count
     //
     // Status transition rules (mirrors the original logic):
-    //   camera active/confirmed  → admin_review
+    //   mobile camera active/confirmed → denied
+    //   fixed/unclassified camera active/confirmed → admin_review
     //   non-camera, new count >= DENY_THRESHOLD, not already denied → denied
     //   everything else          → unchanged
     // COALESCE(denied_by, '[]'::jsonb) guards against any pre-migration rows
@@ -874,6 +873,10 @@ router.post("/reports/:id/deny", async (req: Request, res: Response) => {
         deny_count    = jsonb_array_length(COALESCE(denied_by, '[]'::jsonb)) + 1,
         last_voted_at = now(),
         status        = CASE
+          WHEN type = 'camera'
+            AND camera_type = 'mobile'
+            AND status IN ('active', 'confirmed')
+            THEN 'denied'
           WHEN type = 'camera' AND status IN ('active', 'confirmed')
             THEN 'admin_review'
           WHEN type != 'camera'

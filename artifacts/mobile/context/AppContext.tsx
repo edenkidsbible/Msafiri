@@ -4621,14 +4621,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const flagReport = useCallback(async (id: string, reason?: string): Promise<boolean> => {
     if (!deviceIdRef.current) return false;
     const report = communityReportsRef.current.find((r) => r.id === id || r.serverId === id);
-    if (!report) return false;
-    const serverId = report.serverId ?? id;
+    // The selected marker can outlive the latest reports-array refresh. If it
+    // already carries a server UUID, still send the request instead of falsely
+    // reporting a connection failure before any network call is attempted.
+    const serverId = report?.serverId ?? id;
+    if (report && !report.serverId) return false;
     if (isOfflineRef.current) return false;
     try {
       await apiPost(`/reports/${serverId}/flag`, { deviceId: deviceIdRef.current, reason });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       return true;
-    } catch {
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        // The server has already removed this report, but a selected marker can
+        // remain on screen until the next report refresh. Reconcile immediately
+        // instead of mislabelling the stale record as a connection failure.
+        setCommunityReports((prev) =>
+          prev.filter((r) => r.id !== id && r.serverId !== id && r.serverId !== serverId)
+        );
+        return true;
+      }
+      warnIfBlockedDevice(err);
       return false;
     }
   }, []);

@@ -60,7 +60,7 @@
 - [Speed gauge vs zones-bar overlap](speed-gauge-zonesbar-overlap.md) — pale pill above the drive-screen speed digit was the zones strip, not AlertBanner; digit clipping needs flexShrink:0 on its wrapper.
 - [In-drive alert overlay](drive-alert-overlay.md) — all alert types share the original bottom-sheet UI; only speed-camera alerts show live speed and speed-limit metrics.
 - [Incident re-notify rotation](incident-renotify-rotation.md) — no device location history exists (only push_tokens.lastLat/lastLng latest fix), so "ask fresh drivers" = exclude cumulative notifiedTokens per report + tiebreak by lastSeenAt.
-- [Report flag auto-hide vs deny](report-flag-autohide-vs-deny.md) — flag route now auto-hides on 2 distinct-device flags (status "flagged"); kept separate from the pre-existing single-vote "deny"/Gone-now path.
+- [Report flag auto-hide vs deny](report-flag-autohide-vs-deny.md) — mobile cameras use immediate Gone now; fixed cameras stay protected; stale 404 markers reconcile locally.
 - [Reports moderation pitfall](reports-moderation-pitfall.md) — police was in MODERATED_TYPES causing all checkpoints to vanish; only `camera` should be moderated.
 - [Report clustering architecture](report-clustering-architecture.md) — same-type 100m haversine, single emoji + count badge; no cross-type merging.
 - [Admin mobile system](admin-mobile-system.md) — PIN auth → 30-day JWT (SESSION_SECRET); adminVerified column; verify/deny/relocate endpoints; admin state lives in AppContext not a separate context.

@@ -10,3 +10,9 @@ Added: once `flagCount` reaches 2 from 2 *different* devices (POST `/reports/:id
 **Why:** This is deliberately a *separate* mechanism from the pre-existing single-vote `deny` ("Gone now") path, which instantly denies on the very first vote regardless of type. `deny` means "this is no longer physically there"; the flag threshold means "this report itself is wrong/abusive" and needed a 2-person bar precisely because a single user should not be able to unilaterally remove a permanent report (e.g. a speed camera, TTL `null`) by claiming it's inappropriate.
 
 **How to apply:** Any future report-visibility logic should keep checking `isActive()`/status rather than `flagCount` directly — status is the single source of truth for map visibility, flags are just what mutates it. If the auto-hide threshold ever needs to differ per report type (e.g. cameras only), gate it in the flag route where `FLAG_AUTO_HIDE_THRESHOLD` is checked, not in the map/query layer.
+
+Mobile and fixed camera reports must not share the same removal semantics. A mobile camera is temporary, so drivers get the normal `Still here` / `Gone now` controls and one `Gone now` vote removes it. Fixed or unclassified cameras remain protected and move to admin review instead.
+
+**Why:** Treating every camera as permanent left mobile cameras impossible to remove when they moved. Separately, a selected marker can outlive a reports refresh; flagging that stale ID returns 404 even though the desired outcome (camera absent from the server) is already true.
+
+**How to apply:** Branch camera removal on `cameraType`; default missing types to fixed/unclassified protection. Treat a report-action 404 as stale-state reconciliation: remove the marker locally and do not present it as a connection failure.

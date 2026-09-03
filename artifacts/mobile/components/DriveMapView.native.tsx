@@ -775,6 +775,7 @@ const DriveMapView = forwardRef(function DriveMapView(
     const ok = await flagReport(id, reason);
     setFlaggingId(null);
     if (ok) {
+      setSelectedCluster(null);
       Alert.alert("Reported", "Thanks — our moderation team will review this report.");
     } else {
       Alert.alert("Couldn't send report", "Check your connection and try again.");
@@ -1862,14 +1863,14 @@ const DriveMapView = forwardRef(function DriveMapView(
                               </View>
                             : <Text style={[ms.incidentMeta, { fontStyle: "italic", marginTop: 2 }]}>{frLabel}</Text>
                         )}
-                        {r.type === "camera" ? (
+                        {r.type === "camera" && r.cameraType !== "mobile" ? (
                           r.status === "admin_review" ? (
                             <View style={ms.pendingReviewBanner}>
                               <Text style={ms.pendingReviewTxt}>⏳ Removal pending admin review</Text>
                             </View>
                           ) : (
-                            // Camera anchors are managed by admins. Mobile cameras may move,
-                            // so drivers can flag an outdated position for admin review.
+                            // Fixed/unclassified camera anchors are managed by admins.
+                            // Drivers can flag an outdated position for admin review.
                             <View style={ms.voteRow}>
                               <View style={[ms.cameraPermanentNote]}>
                                 <Ionicons name="shield-checkmark-outline" size={12} color="#1565C0" />
@@ -1888,9 +1889,8 @@ const DriveMapView = forwardRef(function DriveMapView(
                             </View>
                           )
                         ) : canVote && (
-                          // Non-camera incidents: drivers can vote Still here (extends 12 h
-                          // TTL) or Gone now (records vote for admin; report stays on map
-                          // until it expires naturally or admin removes it).
+                          // Temporary incidents and mobile cameras can be confirmed or
+                          // marked Gone now. Mobile cameras must not be treated as permanent.
                           <View style={ms.voteRow}>
                             <TouchableOpacity
                               style={[ms.voteBtn, { backgroundColor: "#388E3C18", borderColor: "#388E3C55" }]}
