@@ -1570,14 +1570,26 @@ export default function MapViewScreen() {
 
               {/* Details */}
               <View style={{ flexDirection: "row", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-                <View style={[ms.zonePill, { backgroundColor: selectedZone.type === "camera" ? "#FFEBEE" : selectedZone.type === "police" ? "#EDE7F6" : "#FFF8E1" }]}>
+                <View style={[ms.zonePill, {
+                  backgroundColor: selectedZone.type === "camera"
+                    ? (selectedZone.cameraType === "mobile" ? "#E8F5E9" : "#FFEBEE")
+                    : selectedZone.type === "police" ? "#EDE7F6" : "#FFF8E1",
+                }]}>
                   <Ionicons
                     name={selectedZone.type === "camera" ? "camera" : selectedZone.type === "police" ? "shield" : "speedometer"}
                     size={13}
-                    color={selectedZone.type === "camera" ? "#C62828" : selectedZone.type === "police" ? "#4527A0" : "#E65100"}
+                    color={selectedZone.type === "camera"
+                      ? cameraMarkerColor(selectedZone.cameraType)
+                      : selectedZone.type === "police" ? "#4527A0" : "#E65100"}
                   />
-                  <Text style={[ms.zonePillTxt, { color: selectedZone.type === "camera" ? "#C62828" : selectedZone.type === "police" ? "#4527A0" : "#E65100" }]}>
-                    {selectedZone.type === "camera" ? "Speed Camera" : selectedZone.type === "police" ? "Police" : "Speed Zone"}
+                  <Text style={[ms.zonePillTxt, {
+                    color: selectedZone.type === "camera"
+                      ? cameraMarkerColor(selectedZone.cameraType)
+                      : selectedZone.type === "police" ? "#4527A0" : "#E65100",
+                  }]}>
+                    {selectedZone.type === "camera"
+                      ? (selectedZone.cameraType === "mobile" ? "Mobile Speed Camera" : "Fixed Speed Camera")
+                      : selectedZone.type === "police" ? "Police" : "Speed Zone"}
                   </Text>
                 </View>
                 <View style={[ms.zonePill, { backgroundColor: "#E8F5E9" }]}>
@@ -1586,7 +1598,13 @@ export default function MapViewScreen() {
                 </View>
               </View>
 
-              {selectedZone.description ? (
+              {selectedZone.type === "camera" ? (
+                <Text style={[ms.incidentMeta, { marginTop: 10, lineHeight: 18 }]}>
+                  {selectedZone.cameraType === "mobile"
+                    ? "Mobile speed camera — may have moved"
+                    : "Fixed speed camera — permanent"}
+                </Text>
+              ) : selectedZone.description ? (
                 <Text style={[ms.incidentMeta, { marginTop: 10, lineHeight: 18 }]}>{selectedZone.description}</Text>
               ) : null}
 
@@ -1698,7 +1716,9 @@ export default function MapViewScreen() {
                 <View style={{ flex: 1 }}>
                   <Text style={ms.sheetTitle}>
                     {selectedCluster.members.length === 1
-                      ? reportLabel(selectedCluster.members[0].type)
+                      ? selectedCluster.members[0].type === "camera"
+                        ? (selectedCluster.members[0].cameraType === "mobile" ? "Mobile Speed Camera" : "Fixed Speed Camera")
+                        : reportLabel(selectedCluster.members[0].type)
                       : `${selectedCluster.members.length} Incidents at this location`}
                   </Text>
                   {selectedCluster.members.length > 1 && (
@@ -1713,6 +1733,7 @@ export default function MapViewScreen() {
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 340 }}>
                 {selectedCluster.members.map((r, i) => {
                   const def = resolveIncidentType(r.type);
+                  const incidentColor = r.type === "camera" ? cameraMarkerColor(r.cameraType) : def.color;
                   const ageStr = formatTimeAgo(r.timestamp, now);
                   const confirmed = r.status === "confirmed";
                   const frTier  = reportTier(r.confirmCount);
@@ -1724,7 +1745,7 @@ export default function MapViewScreen() {
                     : null;
                   return (
                     <View key={r.id} style={[ms.incidentRow, i > 0 && ms.incidentDivider]}>
-                      <View style={[ms.incidentIcon, { backgroundColor: def.color + "22" }]}>
+                      <View style={[ms.incidentIcon, { backgroundColor: incidentColor + "22" }]}>
                         <Text style={ms.incidentEmoji}>{def.emoji}</Text>
                       </View>
                       <View style={{ flex: 1, gap: 3 }}>
@@ -1750,7 +1771,11 @@ export default function MapViewScreen() {
                         </View>
                         {r.roadName ? <Text style={ms.incidentRoad}>{r.roadName}</Text> : null}
                         <Text style={ms.incidentMeta}>
-                          {r.type === "camera" ? "Speed camera — permanent" : ageStr}
+                          {r.type === "camera"
+                            ? (r.cameraType === "mobile"
+                              ? "Mobile speed camera — may have moved"
+                              : "Fixed speed camera — permanent")
+                            : ageStr}
                           {r.type !== "camera" && r.confirmCount != null && r.confirmCount > 1 ? `  ·  ${r.confirmCount > 99 ? "99+" : r.confirmCount} say still here` : ""}
                           {r.type !== "camera" && r.denyCount != null && r.denyCount > 0 ? `  ·  ${r.denyCount > 99 ? "99+" : r.denyCount} say gone` : ""}
                           {r.type === "camera" && r.speedLimit ? `  ·  ${capSpeedLimit(r.speedLimit, vehicle)} km/h zone` : ""}

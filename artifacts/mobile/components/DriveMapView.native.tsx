@@ -1868,8 +1868,8 @@ const DriveMapView = forwardRef(function DriveMapView(
                               <Text style={ms.pendingReviewTxt}>⏳ Removal pending admin review</Text>
                             </View>
                           ) : (
-                            // Speed cameras are permanent infrastructure managed by admins.
-                            // Drivers cannot vote them away — only flag for admin review.
+                            // Camera anchors are managed by admins. Mobile cameras may move,
+                            // so drivers can flag an outdated position for admin review.
                             <View style={ms.voteRow}>
                               <View style={[ms.cameraPermanentNote]}>
                                 <Ionicons name="shield-checkmark-outline" size={12} color="#1565C0" />
@@ -2192,12 +2192,16 @@ const DriveMapView = forwardRef(function DriveMapView(
               {/* Header */}
               <View style={ms.sheetHeader}>
                 <View style={[ms.zoneIconWrap, {
-                  backgroundColor: selectedZone.type === "camera" ? "#E5393518" : selectedZone.type === "police" ? "#1565C018" : "#E6510018",
+                  backgroundColor: selectedZone.type === "camera"
+                    ? (selectedZone.cameraType === "mobile" ? "#00A84518" : "#E5393518")
+                    : selectedZone.type === "police" ? "#1565C018" : "#E6510018",
                 }]}>
                   <Ionicons
                     name={selectedZone.type === "camera" ? "camera" : selectedZone.type === "police" ? "person" : "speedometer"}
                     size={20}
-                    color={selectedZone.type === "camera" ? "#E53935" : selectedZone.type === "police" ? "#1565C0" : "#E65100"}
+                    color={selectedZone.type === "camera"
+                      ? (selectedZone.cameraType === "mobile" ? "#00A845" : "#E53935")
+                      : selectedZone.type === "police" ? "#1565C0" : "#E65100"}
                   />
                 </View>
                 <View style={{ flex: 1 }}>
@@ -2217,7 +2221,9 @@ const DriveMapView = forwardRef(function DriveMapView(
                 <Ionicons name="shield-checkmark-outline" size={13} color="#1565C0" />
                 <Text style={ms.zoneManagedTxt}>
                   {selectedZone.type === "camera"
-                    ? "Speed camera — permanent enforcement point"
+                    ? (selectedZone.cameraType === "mobile"
+                      ? "Mobile speed camera — may have moved"
+                      : "Fixed speed camera — permanent")
                     : selectedZone.type === "police"
                     ? "Police checkpoint — reported by our team"
                     : "Speed zone — managed by our team"}
