@@ -33,6 +33,32 @@ import { MarqueeText } from "@/components/MarqueeText";
 
 const NAIROBI = { latitude: -1.2921, longitude: 36.8219, latitudeDelta: 0.15, longitudeDelta: 0.15 };
 const MAX_ANDROID_ZONE_MARKERS = 80;
+const MAX_ROUTE_RENDER_COORDS = 1200;
+
+function isSafeRouteCoord(coord: unknown): coord is { latitude: number; longitude: number } {
+  if (!coord || typeof coord !== "object") return false;
+  const candidate = coord as { latitude?: unknown; longitude?: unknown };
+  return (
+    typeof candidate.latitude === "number" &&
+    Number.isFinite(candidate.latitude) &&
+    candidate.latitude >= -90 &&
+    candidate.latitude <= 90 &&
+    typeof candidate.longitude === "number" &&
+    Number.isFinite(candidate.longitude) &&
+    candidate.longitude >= -180 &&
+    candidate.longitude <= 180
+  );
+}
+
+function boundedRouteCoords<T extends { latitude: number; longitude: number }>(coords: T[]): T[] {
+  if (coords.length <= MAX_ROUTE_RENDER_COORDS) return coords;
+  const last = coords.length - 1;
+  const stride = Math.ceil(last / (MAX_ROUTE_RENDER_COORDS - 1));
+  const sampled: T[] = [];
+  for (let i = 0; i < last; i += stride) sampled.push(coords[i]);
+  sampled.push(coords[last]);
+  return sampled;
+}
 
 // All incident types available in the filter checklist, in display order.
 // "zone" = general speed-zone pins from the zones API (distinct from community reports).
@@ -292,6 +318,10 @@ export default function MapViewScreen() {
     navTripPaused,
     pendingFocusCoords, setPendingFocusCoords,
   } = useApp();
+  const safeRouteCoords = useMemo(() => {
+    const coords = activeRoute?.coords ?? [];
+    return coords.every(isSafeRouteCoord) ? boundedRouteCoords(coords) : [];
+  }, [activeRoute]);
   const weather = useWeather(currentLat, currentLng);
 
   /** Returns true when the marker at (lat, lng) is behind the driver
@@ -803,8 +833,8 @@ export default function MapViewScreen() {
   };
 
   const fitToRoute = () => {
-    if (mapRef.current && activeRoute?.coords.length) {
-      mapRef.current.fitToCoordinates(activeRoute.coords, {
+    if (mapRef.current && safeRouteCoords.length >= 2) {
+      mapRef.current.fitToCoordinates(safeRouteCoords, {
         edgePadding: { top: 80, right: 40, bottom: 120, left: 40 },
         animated: true,
       });
@@ -1287,7 +1317,7 @@ export default function MapViewScreen() {
 
         {navTripActive && activeRoute && (
           <Polyline
-            coordinates={activeRoute.coords}
+            coordinates={safeRouteCoords}
             strokeColor="#2196F3"
             strokeWidth={6} lineCap="round" lineJoin="round"
           />
@@ -1344,8 +1374,8 @@ export default function MapViewScreen() {
         )}
 
         {/* Destination */}
-        {activeRoute && activeRoute.coords.length > 0 && (
-          <Marker coordinate={activeRoute.coords[activeRoute.coords.length - 1]} anchor={{ x: 0.5, y: 1 }} title="Destination">
+        {activeRoute && safeRouteCoords.length > 0 && (
+          <Marker coordinate={safeRouteCoords[safeRouteCoords.length - 1]} anchor={{ x: 0.5, y: 1 }} title="Destination">
             <MarkerIcon ioniconName="navigate" bg="#1565C0" size={36} />
           </Marker>
         )}

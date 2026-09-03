@@ -319,10 +319,18 @@ function locationOptions(mode: AccuracyMode): Parameters<typeof Location.startLo
  *
  * Guards against concurrent restarts and missing permissions.
  */
-async function switchAccuracyMode(mode: AccuracyMode): Promise<void> {
+async function switchAccuracyModeNow(mode: AccuracyMode): Promise<void> {
   try {
-    const { status } = await Location.getBackgroundPermissionsAsync();
-    if (status !== "granted") return;
+    const [{ status }, activeRaw, ownerRaw] = await Promise.all([
+      Location.getBackgroundPermissionsAsync(),
+      AsyncStorage.getItem(BG_DRIVE_ACTIVE_KEY),
+      AsyncStorage.getItem(BG_ALERT_OWNER_KEY),
+    ]);
+    if (
+      status !== "granted" ||
+      activeRaw !== "true" ||
+      ownerRaw !== "background"
+    ) return;
 
     // Persist *before* stopping so that if something throws, the target mode
     // is recorded and the next startBgDriveAlertsTask call picks it up.
@@ -337,6 +345,11 @@ async function switchAccuracyMode(mode: AccuracyMode): Promise<void> {
     }
 
     try {
+      const [stillActive, stillOwner] = await Promise.all([
+        AsyncStorage.getItem(BG_DRIVE_ACTIVE_KEY),
+        AsyncStorage.getItem(BG_ALERT_OWNER_KEY),
+      ]);
+      if (stillActive !== "true" || stillOwner !== "background") return;
       await Location.startLocationUpdatesAsync(
         BG_DRIVE_ALERTS_TASK,
         locationOptions(mode),
@@ -349,6 +362,11 @@ async function switchAccuracyMode(mode: AccuracyMode): Promise<void> {
       // the driver still receives alerts, even if at full power draw.
       console.warn("[bgDriveAlerts] restart after mode switch failed, recovering:", startErr);
       try {
+        const [stillActive, stillOwner] = await Promise.all([
+          AsyncStorage.getItem(BG_DRIVE_ACTIVE_KEY),
+          AsyncStorage.getItem(BG_ALERT_OWNER_KEY),
+        ]);
+        if (stillActive !== "true" || stillOwner !== "background") return;
         await Location.startLocationUpdatesAsync(
           BG_DRIVE_ALERTS_TASK,
           locationOptions("high"),
@@ -363,6 +381,35 @@ async function switchAccuracyMode(mode: AccuracyMode): Promise<void> {
     console.warn("[bgDriveAlerts] switchAccuracyMode failed:", e);
   }
 }
+
+let lifecycleQueue: Promise<void> = Promise.resolve();
+
+function enqueueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+  const result = lifecycleQueue.catch(() => {}).then(operation);
+  lifecycleQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+let desiredAccuracyMode: AccuracyMode | null = null;
+let accuracySwitchScheduled = false;
+
+function requestAccuracyModeSwitch(mode: AccuracyMode): void {
+  desiredAccuracyMode = mode;
+  if (accuracySwitchScheduled) return;
+  accuracySwitchScheduled = true;
+  void enqueueLifecycle(async () => {
+    while (desiredAccuracyMode) {
+      const target = desiredAccuracyMode;
+      desiredAccuracyMode = null;
+      await switchAccuracyModeNow(target);
+    }
+  }).finally(() => {
+    accuracySwitchScheduled = false;
+    if (desiredAccuracyMode) requestAccuracyModeSwitch(desiredAccuracyMode);
+  });
+}
+
+let taskInvocationRunning = false;
 
 // ─── Task definition ──────────────────────────────────────────────────────────
 
@@ -380,6 +427,8 @@ export function defineBackgroundDriveAlertsTask(): void {
       data,
       error,
     }: TaskManager.TaskManagerTaskBody<{ locations: Location.LocationObject[] }>) => {
+      if (taskInvocationRunning) return;
+      taskInvocationRunning = true;
       try {
         if (error) {
           console.warn("[bgDriveAlerts] error:", error.message);
@@ -564,7 +613,7 @@ export function defineBackgroundDriveAlertsTask(): void {
           if (targetMode !== currentMode) {
             // Fire-and-forget: switching involves a stop+start which is
             // async but we don't need the result for this invocation.
-            switchAccuracyMode(targetMode).catch(() => {});
+            requestAccuracyModeSwitch(targetMode);
           }
         }
 
@@ -659,6 +708,8 @@ export function defineBackgroundDriveAlertsTask(): void {
         ]);
       } catch (e) {
         console.warn("[bgDriveAlerts] unhandled error:", e);
+      } finally {
+        taskInvocationRunning = false;
       }
     },
   );
@@ -678,26 +729,28 @@ export function defineBackgroundDriveAlertsTask(): void {
  */
 export async function startBgDriveAlertsTask(): Promise<boolean> {
   if (Platform.OS === "web") return false;
-  try {
-    const { status } = await Location.getBackgroundPermissionsAsync();
-    if (status !== "granted") return false;
+  return enqueueLifecycle(async () => {
+    try {
+      const { status } = await Location.getBackgroundPermissionsAsync();
+      if (status !== "granted") return false;
 
-    const isRunning = await Location.hasStartedLocationUpdatesAsync(
-      BG_DRIVE_ALERTS_TASK,
-    ).catch(() => false);
-    if (isRunning) return true;
+      const isRunning = await Location.hasStartedLocationUpdatesAsync(
+        BG_DRIVE_ALERTS_TASK,
+      ).catch(() => false);
+      if (isRunning) return true;
 
-    // Restore the accuracy mode from the last run, defaulting to High for a
-    // fresh session (no stored mode) so we never miss an early zone.
-    const storedMode = await AsyncStorage.getItem(BG_ACCURACY_MODE_KEY).catch(() => null);
-    const mode: AccuracyMode = (storedMode as AccuracyMode | null) ?? "high";
+      // Restore the accuracy mode from the last run, defaulting to High for a
+      // fresh session (no stored mode) so we never miss an early zone.
+      const storedMode = await AsyncStorage.getItem(BG_ACCURACY_MODE_KEY).catch(() => null);
+      const mode: AccuracyMode = (storedMode as AccuracyMode | null) ?? "high";
 
-    await Location.startLocationUpdatesAsync(BG_DRIVE_ALERTS_TASK, locationOptions(mode));
-    return true;
-  } catch (e) {
-    console.warn("[bgDriveAlerts] start failed:", e);
-    return false;
-  }
+      await Location.startLocationUpdatesAsync(BG_DRIVE_ALERTS_TASK, locationOptions(mode));
+      return true;
+    } catch (e) {
+      console.warn("[bgDriveAlerts] start failed:", e);
+      return false;
+    }
+  });
 }
 
 /**
@@ -708,17 +761,20 @@ export async function startBgDriveAlertsTask(): Promise<boolean> {
  */
 export async function stopBgDriveAlertsTask(): Promise<void> {
   if (Platform.OS === "web") return;
-  try {
-    const isRunning = await Location.hasStartedLocationUpdatesAsync(
-      BG_DRIVE_ALERTS_TASK,
-    ).catch(() => false);
-    if (isRunning) await Location.stopLocationUpdatesAsync(BG_DRIVE_ALERTS_TASK);
-  } catch {
-    // Ignore — task may not be registered yet
-  }
-  // Reset adaptive state for the next drive session.
-  await Promise.all([
-    AsyncStorage.removeItem(BG_ACCURACY_MODE_KEY).catch(() => {}),
-    AsyncStorage.removeItem(BG_LAST_ALERT_AT_KEY).catch(() => {}),
-  ]);
+  desiredAccuracyMode = null;
+  return enqueueLifecycle(async () => {
+    try {
+      const isRunning = await Location.hasStartedLocationUpdatesAsync(
+        BG_DRIVE_ALERTS_TASK,
+      ).catch(() => false);
+      if (isRunning) await Location.stopLocationUpdatesAsync(BG_DRIVE_ALERTS_TASK);
+    } catch {
+      // Ignore — task may not be registered yet
+    }
+    // Reset adaptive state for the next drive session.
+    await Promise.all([
+      AsyncStorage.removeItem(BG_ACCURACY_MODE_KEY).catch(() => {}),
+      AsyncStorage.removeItem(BG_LAST_ALERT_AT_KEY).catch(() => {}),
+    ]);
+  });
 }

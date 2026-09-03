@@ -112,6 +112,34 @@ function haversine(lat1: number, lng1: number, lat2: number, lng2: number): numb
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+function isSafeMapCoord(coord: unknown): coord is { latitude: number; longitude: number } {
+  if (!coord || typeof coord !== "object") return false;
+  const candidate = coord as { latitude?: unknown; longitude?: unknown };
+  return (
+    typeof candidate.latitude === "number" &&
+    Number.isFinite(candidate.latitude) &&
+    candidate.latitude >= -90 &&
+    candidate.latitude <= 90 &&
+    typeof candidate.longitude === "number" &&
+    Number.isFinite(candidate.longitude) &&
+    candidate.longitude >= -180 &&
+    candidate.longitude <= 180
+  );
+}
+
+function boundDisplayRouteCoords<T extends { latitude: number; longitude: number }>(
+  coords: T[],
+  maxCoords = 1200,
+): T[] {
+  if (coords.length <= maxCoords) return coords;
+  const last = coords.length - 1;
+  const stride = Math.ceil(last / (maxCoords - 1));
+  const sampled: T[] = [];
+  for (let i = 0; i < last; i += stride) sampled.push(coords[i]);
+  sampled.push(coords[last]);
+  return sampled;
+}
+
 type ClusterGroup = { members: CommunityReport[]; lat: number; lng: number };
 
 function clusterReports(reports: CommunityReport[]): ClusterGroup[] {
@@ -824,8 +852,9 @@ const DriveMapView = forwardRef(function DriveMapView(
 
   // Route preview fit: when a route is set, fit the map to show the full polyline.
   useEffect(() => {
-    if (!activeRoute?.coords.length) return;
-    const coords = activeRoute.coords;
+    if (!activeRoute?.coords || !activeRoute.coords.every(isSafeMapCoord)) return;
+    const coords = boundDisplayRouteCoords(activeRoute.coords);
+    if (coords.length < 2) return;
     const t = setTimeout(() => {
       if (!mountedRef.current) return;
       mapRef.current?.fitToCoordinates(coords, {
@@ -1208,6 +1237,26 @@ const DriveMapView = forwardRef(function DriveMapView(
     [altRoutes],
   );
 
+  // Keep unsafe coordinates out of both JavaScript projection work and the
+  // native map bridge. Route fetching already rejects malformed geometry, but
+  // this second boundary also protects restored/cached state and future callers.
+  const safeActiveRouteCoords = useMemo(
+    () => {
+      const coords = activeRoute?.coords ?? [];
+      return coords.every(isSafeMapCoord) ? coords : [];
+    },
+    [activeRoute],
+  );
+
+  // Long routes can contain several thousand points. Re-slicing and sending
+  // that full geometry through react-native-maps every few seconds creates
+  // sustained native allocation pressure. Keep full geometry for projection,
+  // but cap display geometry while preserving both endpoints.
+  const renderedActiveRouteCoords = useMemo(() => {
+    const MAX_RENDER_COORDS = 1200;
+    return boundDisplayRouteCoords(safeActiveRouteCoords, MAX_RENDER_COORDS);
+  }, [safeActiveRouteCoords]);
+
   // Active-route "ahead" slice. The nearest-coordinate index still tracks the
   // driver, but it is quantized to steps of AHEAD_IDX_STEP so the memo below
   // only rebuilds the native polyline every ~4 passed coordinates instead of
@@ -1230,7 +1279,7 @@ const DriveMapView = forwardRef(function DriveMapView(
       lastRouteIdRef.current = null;
       return 0;
     }
-    const coords = activeRoute.coords;
+    const coords = safeActiveRouteCoords;
     if (!Array.isArray(coords) || coords.length < 2) return 0;
 
     // Route changed — reset cursor and do a full scan once.
@@ -1268,7 +1317,7 @@ const DriveMapView = forwardRef(function DriveMapView(
 
     navProjIdxRef.current = bestIdx;
     return bestIdx - (bestIdx % AHEAD_IDX_STEP);
-  }, [activeRoute, currentLat, currentLng]);
+  }, [activeRoute, safeActiveRouteCoords, currentLat, currentLng]);
 
   // Trip-mode polyline split — find the nearest coord index to the driver's
   // current position so we can render green (covered) and blue (remaining)
@@ -1279,7 +1328,7 @@ const DriveMapView = forwardRef(function DriveMapView(
       tripProjIdxRef.current = 0;
       return 0;
     }
-    const coords = activeRoute.coords;
+    const coords = safeActiveRouteCoords;
     if (!Array.isArray(coords) || coords.length < 2) return 0;
     const prior  = tripProjIdxRef.current;
     // Backward reach expanded to 30 (was 3) so a U-turn correctly walks the
@@ -1301,16 +1350,30 @@ const DriveMapView = forwardRef(function DriveMapView(
     }
     tripProjIdxRef.current = bestIdx;
     return bestIdx - (bestIdx % TRIP_STEP);
-  }, [tripMode, activeRoute, currentLat, currentLng]);
+  }, [tripMode, activeRoute, safeActiveRouteCoords, currentLat, currentLng]);
+
+  const renderedTripSplitIdx = useMemo(() => {
+    if (
+      safeActiveRouteCoords.length < 2 ||
+      renderedActiveRouteCoords.length < 2
+    ) return 0;
+    return Math.min(
+      renderedActiveRouteCoords.length - 1,
+      Math.round(
+        (tripSplitIdx / (safeActiveRouteCoords.length - 1)) *
+        (renderedActiveRouteCoords.length - 1),
+      ),
+    );
+  }, [tripSplitIdx, safeActiveRouteCoords.length, renderedActiveRouteCoords.length]);
 
   // Traffic-coloured segments for the active route — full route with traffic colouring.
   const activeRouteSegs = useMemo(() => {
     if (!activeRoute) return null;
-    const coords = activeRoute.coords;
+    const coords = safeActiveRouteCoords;
     if (!Array.isArray(coords) || coords.length < 2) return null;
     return buildTrafficSegments(coords, activeRoute.speedIntervals);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeRoute]);
+  }, [activeRoute, safeActiveRouteCoords]);
 
   return (
     <>
@@ -1617,19 +1680,19 @@ const DriveMapView = forwardRef(function DriveMapView(
             already shows destination, duration, and distance as text, and
             drawing a blue line before Start caused it to linger on the home
             map and persist through alt-route selection. */}
-        {tripMode && activeRoute && activeRoute.coords.length >= 2 && (
+        {tripMode && activeRoute && renderedActiveRouteCoords.length >= 2 && (
           <>
             {/* Green section — coords already driven */}
-            {tripSplitIdx > 1 && (
+            {renderedTripSplitIdx > 1 && (
               <>
                 <Polyline
-                  coordinates={activeRoute.coords.slice(0, tripSplitIdx + 1)}
+                  coordinates={renderedActiveRouteCoords.slice(0, renderedTripSplitIdx + 1)}
                   strokeColor="#FFFFFF30"
                   strokeWidth={10}
                   lineCap="round" lineJoin="round"
                 />
                 <Polyline
-                  coordinates={activeRoute.coords.slice(0, tripSplitIdx + 1)}
+                  coordinates={renderedActiveRouteCoords.slice(0, renderedTripSplitIdx + 1)}
                   strokeColor="#00C853"
                   strokeWidth={6}
                   lineCap="round" lineJoin="round"
@@ -1637,16 +1700,16 @@ const DriveMapView = forwardRef(function DriveMapView(
               </>
             )}
             {/* Blue section — coords ahead */}
-            {tripSplitIdx < activeRoute.coords.length - 1 && (
+            {renderedTripSplitIdx < renderedActiveRouteCoords.length - 1 && (
               <>
                 <Polyline
-                  coordinates={activeRoute.coords.slice(tripSplitIdx)}
+                  coordinates={renderedActiveRouteCoords.slice(renderedTripSplitIdx)}
                   strokeColor="#FFFFFF40"
                   strokeWidth={10}
                   lineCap="round" lineJoin="round"
                 />
                 <Polyline
-                  coordinates={activeRoute.coords.slice(tripSplitIdx)}
+                  coordinates={renderedActiveRouteCoords.slice(renderedTripSplitIdx)}
                   strokeColor="#1565C0"
                   strokeWidth={6}
                   lineCap="round" lineJoin="round"
@@ -1657,9 +1720,9 @@ const DriveMapView = forwardRef(function DriveMapView(
         )}
 
         {/* Destination marker — red dot in trip mode, blue nav pin in preview */}
-        {activeRoute && activeRoute.coords.length > 0 && (
+        {activeRoute && renderedActiveRouteCoords.length > 0 && (
           <Marker
-            coordinate={activeRoute.coords[activeRoute.coords.length - 1]}
+            coordinate={renderedActiveRouteCoords[renderedActiveRouteCoords.length - 1]}
             anchor={{ x: 0.5, y: tripMode ? 0.5 : 1 }}
             title="Destination"
             tracksViewChanges={false}

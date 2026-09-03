@@ -32,3 +32,32 @@ The single `routeIncidents` useMemo depended on `communityReports` (polled every
 Any new O(N) loop added to the render body or to a useMemo that depends on `currentLat/currentLng` will reintroduce the crash. Rule: **never put haversine loops in the render body; always useMemo with dep arrays that don't include continuously-updating values unless the computation is O(1) or O(window)**.
 
 `routeCumDist` + `projectOntoRoute` for static datasets (cameras, zones) must be cached by route ID and never re-projected just because live data (reports, HERE incidents) changed.
+
+## Native route geometry boundary
+
+Reject an entire route if any coordinate is missing, non-finite, or outside
+latitude/longitude bounds. Keep full validated geometry for route projection,
+but cap the geometry passed to native map rendering and `fitToCoordinates`.
+
+**Why:** Destination routes cross the JavaScript/native map bridge repeatedly.
+One corrupt point can crash the native map, while very long repeatedly-sliced
+polylines create sustained native allocation pressure several minutes into a
+drive.
+
+**How to apply:** Every active-route polyline, destination marker, and route-fit
+call must consume the same validated/bounded geometry. Do not leave a raw
+`activeRoute.coords` bypass on either browse or drive maps.
+
+## Background location lifecycle serialization
+
+Start, stop, and adaptive accuracy changes must share one serialized lifecycle
+queue, with drive-active and foreground/background ownership rechecked
+immediately before restarting location updates.
+
+**Why:** Concurrent task invocations and app-state transitions can interleave
+stop/start calls, revive a stale task after a trip ends, or pressure Android's
+location/Binder services until the app is killed.
+
+**How to apply:** Never fire-and-forget a direct location subscription restart.
+Queue the operation, converge to the latest requested mode, and let stop/end
+invalidate pending mode changes.

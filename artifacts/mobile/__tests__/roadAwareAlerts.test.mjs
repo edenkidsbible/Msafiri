@@ -60,7 +60,7 @@ describe("single alert owner lifecycle", () => {
 
   it("background delivery checks ownership at entry and again before scheduling", () => {
     const ownerChecks = backgroundSource.match(/ownerRaw !== "background"|BG_ALERT_OWNER_KEY\)\) !== "background"/g) ?? [];
-    assert.equal(ownerChecks.length, 2);
+    assert.ok(ownerChecks.length >= 2);
   });
 
   it("foreground voice timers and immediate chimes require active app state", () => {

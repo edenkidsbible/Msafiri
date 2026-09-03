@@ -26,6 +26,14 @@ const dashcamOverlaySource = fs.readFileSync(
   new URL("../components/DashcamOverlay.tsx", import.meta.url),
   "utf8",
 );
+const appContextSource = fs.readFileSync(
+  new URL("../context/AppContext.tsx", import.meta.url),
+  "utf8",
+);
+const backgroundAlertsSource = fs.readFileSync(
+  new URL("../utils/backgroundDriveAlerts.ts", import.meta.url),
+  "utf8",
+);
 
 test("community map markers stop bitmap tracking after their visual state settles", () => {
   assert.match(driveMapSource, /tracksViewChanges=\{!clusterMarkersFrozen\}/);
@@ -100,4 +108,33 @@ test("Dashcam ready, cancel, failure, and retry paths cannot strand pending stat
   assert.match(dashcamContextSource, /if \(!isRecordingRef\.current\) \{[\s\S]{0,300}setBackgroundRecordPending\(false\)/);
   assert.match(dashcamOverlaySource, /onMountError=\{\(event: any\) => \{[\s\S]{0,160}clearBackgroundRecordPending\(\)/);
   assert.match(dashcamOverlaySource, /setCameraAttempt\(\(attempt\) => attempt \+ 1\)[\s\S]{0,80}startBackgroundRecording\(\)/);
+});
+
+test("destination routes reject unsafe coordinates before native map rendering", () => {
+  assert.match(appContextSource, /r\.coords\.length < 2/);
+  assert.match(appContextSource, /!r\.coords\.every\(isValidCoord\)/);
+  assert.match(driveMapSource, /const safeActiveRouteCoords = useMemo/);
+  assert.match(driveMapSource, /fitToCoordinates\(coords/);
+  assert.match(driveMapSource, /activeRoute\.coords\.every\(isSafeMapCoord\)/);
+  assert.doesNotMatch(driveMapSource, /coordinates=\{activeRoute\.coords\.slice/);
+  assert.doesNotMatch(driveMapSource, /coordinate=\{activeRoute\.coords\[/);
+  assert.match(startupMapSource, /const safeRouteCoords = useMemo/);
+  assert.doesNotMatch(startupMapSource, /fitToCoordinates\(activeRoute\.coords/);
+  assert.doesNotMatch(startupMapSource, /coordinates=\{activeRoute\.coords\}/);
+  assert.doesNotMatch(startupMapSource, /coordinate=\{activeRoute\.coords\[/);
+});
+
+test("long active routes use bounded display geometry", () => {
+  assert.match(driveMapSource, /MAX_RENDER_COORDS = 1200/);
+  assert.match(driveMapSource, /renderedActiveRouteCoords\.slice/);
+  assert.match(driveMapSource, /renderedTripSplitIdx/);
+});
+
+test("report refresh and background location work cannot overlap", () => {
+  assert.match(appContextSource, /reportsRefreshInFlightRef\.current/);
+  assert.match(backgroundAlertsSource, /if \(taskInvocationRunning\) return/);
+  assert.match(backgroundAlertsSource, /enqueueLifecycle/);
+  assert.match(backgroundAlertsSource, /desiredAccuracyMode/);
+  assert.match(backgroundAlertsSource, /stillActive !== "true" \|\| stillOwner !== "background"/);
+  assert.doesNotMatch(backgroundAlertsSource, /switchAccuracyMode\(targetMode\)/);
 });

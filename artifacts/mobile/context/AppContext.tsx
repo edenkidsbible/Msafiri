@@ -660,6 +660,20 @@ async function fetchGoogleRoute(
    *  Pass null / omit for cold-start or GPS-unavailable situations. */
   heading?: number | null,
 ): Promise<AppRoute[]> {
+  const isValidCoord = (coord: unknown): coord is RouteCoord => {
+    if (!coord || typeof coord !== "object") return false;
+    const candidate = coord as Partial<RouteCoord>;
+    return (
+      typeof candidate.latitude === "number" &&
+      Number.isFinite(candidate.latitude) &&
+      candidate.latitude >= -90 &&
+      candidate.latitude <= 90 &&
+      typeof candidate.longitude === "number" &&
+      Number.isFinite(candidate.longitude) &&
+      candidate.longitude >= -180 &&
+      candidate.longitude <= 180
+    );
+  };
   type ServerStep = {
     instruction: string;
     distanceM: number;
@@ -698,7 +712,11 @@ async function fetchGoogleRoute(
 
       // Skip any route that is missing coords or steps — passing an empty / null
       // array into buildCumulativeDistances or the step mapper would throw later.
-      if (!Array.isArray(r.coords) || r.coords.length === 0) {
+      if (
+        !Array.isArray(r.coords) ||
+        r.coords.length < 2 ||
+        !r.coords.every(isValidCoord)
+      ) {
         console.warn(`[fetchGoogleRoute] route ${idx} missing coords — skipped`);
         continue;
       }
@@ -709,12 +727,21 @@ async function fetchGoogleRoute(
 
       // Build coords first so we can compute cumulative distances and project
       // each step's location onto the polyline (giving stepAlongRouteM).
-      const coords: RouteCoord[] = r.coords; // already {latitude, longitude}
+      const coords: RouteCoord[] = r.coords;
       const cumDist = buildCumulativeDistances(coords);
 
       // Filter falsy step entries before mapping — a single null/undefined step
       // from the server must not crash the entire route fetch.
-      const steps: RouteStep[] = r.steps.filter(Boolean).map((s) => {
+      const steps: RouteStep[] = r.steps.filter(
+        (s) =>
+          !!s &&
+          Number.isFinite(s.lat) &&
+          s.lat >= -90 &&
+          s.lat <= 90 &&
+          Number.isFinite(s.lng) &&
+          s.lng >= -180 &&
+          s.lng <= 180,
+      ).map((s) => {
         const stepLoc: RouteCoord = {
           latitude:  typeof s.lat === "number" ? s.lat : 0,
           longitude: typeof s.lng === "number" ? s.lng : 0,
@@ -723,8 +750,11 @@ async function fetchGoogleRoute(
         // Pre-compute cumulative distances along the step's own road geometry so
         // the GPS handler can measure remaining distance along the actual road
         // shape, not a straight line between the step's start and end points.
-        const stepCumDist = s.stepCoords?.length
-          ? buildCumulativeDistances(s.stepCoords)
+        const safeStepCoords = Array.isArray(s.stepCoords)
+          ? s.stepCoords.filter(isValidCoord)
+          : undefined;
+        const stepCumDist = safeStepCoords && safeStepCoords.length >= 2
+          ? buildCumulativeDistances(safeStepCoords)
           : undefined;
         return {
           instruction:     s.instruction     ?? "",
@@ -733,7 +763,7 @@ async function fetchGoogleRoute(
           maneuverType:    s.maneuverType    ?? "continue",
           roadName:        s.roadName        ?? "",
           stepAlongRouteM: proj?.alongRouteM ?? 0,
-          stepCoords:      s.stepCoords,
+          stepCoords:      stepCumDist ? safeStepCoords : undefined,
           stepCumDist,
         };
       });
@@ -796,11 +826,18 @@ function projectOntoRoute(
   searchFrom = 0,
   searchTo = coords.length - 1
 ): { offRouteM: number; alongRouteM: number; matchedIdx: number } | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   let best: { offRouteM: number; alongRouteM: number; matchedIdx: number } | null = null;
   const from = Math.max(0, searchFrom);
   const to = Math.min(coords.length - 1, searchTo);
   for (let i = from; i <= to; i++) {
-    const d = haversine(lat, lng, coords[i].latitude, coords[i].longitude);
+    const coord = coords[i];
+    if (
+      !coord ||
+      !Number.isFinite(coord.latitude) ||
+      !Number.isFinite(coord.longitude)
+    ) continue;
+    const d = haversine(lat, lng, coord.latitude, coord.longitude);
     if (!best || d < best.offRouteM) best = { offRouteM: d, alongRouteM: cumDist[i], matchedIdx: i };
   }
   return best;
@@ -1193,6 +1230,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const driverNameRef = useRef<string>("");
   const isOfflineRef = useRef(false);
   const deviceIdRef = useRef<string | null>(null);
+  const reportsRefreshInFlightRef = useRef(false);
   const pollLocationRef = useRef<{ lat: number; lng: number } | null>(null);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [shareCode,  setShareCode]  = useState<string | null>(null); // short code for the public share URL
@@ -3008,7 +3046,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // ── Route fetching ────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!navDestination || !currentLat || !currentLng) return;
+    if (
+      !navDestination ||
+      currentLat == null ||
+      currentLng == null ||
+      !Number.isFinite(currentLat) ||
+      !Number.isFinite(currentLng) ||
+      !Number.isFinite(navDestination.lat) ||
+      !Number.isFinite(navDestination.lng)
+    ) return;
     let cancelled = false;
     setRouteLoading(true);
     setActiveRoute(null);
@@ -3049,7 +3095,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // can be called out-of-cycle from usePushNotifications when a silent
   // "reports_refresh" push arrives, making new reports appear within ~2 s.
   const refreshReports = useCallback(async () => {
-    if (isOfflineRef.current || !deviceIdRef.current) return;
+    if (
+      isOfflineRef.current ||
+      !deviceIdRef.current ||
+      reportsRefreshInFlightRef.current
+    ) return;
+    reportsRefreshInFlightRef.current = true;
     try {
       // Pass the driver's current location so the server can apply a radius
       // filter.  Use 50 km — wide enough to cover Greater Nairobi and surrounding
@@ -3128,12 +3179,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ? { ...o, status: match.status, confirmCount: match.confirmCount, denyCount: match.denyCount, adminVerified: match.adminVerified }
             : o;
         });
-        return [...ownedUpdated, ...remoteNew].filter(
+        const next = [...ownedUpdated, ...remoteNew].filter(
           (r) => r.status !== "expired" && r.status !== "denied"
         );
+        const unchanged =
+          next.length === prev.length &&
+          next.every((item, index) => {
+            const before = prev[index];
+            return (
+              before?.id === item.id &&
+              before.status === item.status &&
+              before.confirmCount === item.confirmCount &&
+              before.denyCount === item.denyCount &&
+              before.adminVerified === item.adminVerified &&
+              before.lat === item.lat &&
+              before.lng === item.lng &&
+              before.speedLimit === item.speedLimit &&
+              before.roadName === item.roadName
+            );
+          });
+        return unchanged ? prev : next;
       });
       setLastAlertDataSyncedAt(new Date());
     } catch { /* network error — keep local copy */ }
+    finally {
+      reportsRefreshInFlightRef.current = false;
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
