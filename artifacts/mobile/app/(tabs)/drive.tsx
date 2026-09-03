@@ -340,6 +340,7 @@ export default function DriveScreen() {
   // Keep the active-drive surface map-first. The safety actions stay visible,
   // while secondary trip details open on demand.
   const [driveControlsExpanded, setDriveControlsExpanded] = useState(false);
+  const [driveControlsHidden, setDriveControlsHidden] = useState(false);
   // Destination picker modal — opened from the pre-trip idle screen
   const [showDestPicker, setShowDestPicker] = useState(false);
   // When true: hide pre-trip screen, show map + route preview sheet so the
@@ -388,7 +389,10 @@ export default function DriveScreen() {
   // Each new drive starts map-first. The expanded details state is local UI
   // state, not a preference that should carry into the next trip.
   useEffect(() => {
-    if (tripActive) setDriveControlsExpanded(false);
+    if (tripActive) {
+      setDriveControlsExpanded(false);
+      setDriveControlsHidden(false);
+    }
   }, [tripActive]);
 
   useEffect(() => {
@@ -3407,7 +3411,7 @@ export default function DriveScreen() {
       {/* ══════════════════════════════════════════════════════════════════
           BOTTOM: Live Trip sheet
       ══════════════════════════════════════════════════════════════════ */}
-      {tripActive && (
+      {tripActive && !driveControlsHidden && (
         <View
           style={[styles.liveTripSheet, {
             backgroundColor: isDark ? "#111514FA" : "#FFFFFFFA",
@@ -3757,7 +3761,48 @@ export default function DriveScreen() {
               </View>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity
+            style={[styles.hideControlsBtn, { borderColor: c.tileBorder }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              setLiveTripSheetHeight(0);
+              setDriveControlsHidden(true);
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Hide drive controls"
+            testID="hide-drive-controls"
+          >
+            <Ionicons name="chevron-down" size={15} color={c.mutedForeground} />
+            <Text style={[styles.hideControlsText, { color: c.mutedForeground }]}>
+              Hide Controls
+            </Text>
+          </TouchableOpacity>
         </View>
+      )}
+
+      {tripActive && driveControlsHidden && (
+        <TouchableOpacity
+          style={[styles.showControlsBtn, {
+            bottom: bottomInset + tabBarH + 12,
+            backgroundColor: isDark ? "#111514F2" : "#FFFFFFF2",
+            borderColor: c.tileBorder,
+          }]}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            setDriveControlsHidden(false);
+          }}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Show drive controls"
+          testID="show-drive-controls"
+        >
+          <Ionicons name="chevron-up" size={15} color={c.primary} />
+          <Text style={[styles.showControlsText, { color: c.foreground }]}>
+            Show Controls
+          </Text>
+        </TouchableOpacity>
       )}
 
       {/* Arrival card removed — Live Trip mode ends via "End Trip" button */}
@@ -5444,6 +5489,42 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontFamily: "Inter_400Regular",
     marginLeft: 2,
+  },
+  hideControlsBtn: {
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginTop: 10,
+  },
+  hideControlsText: {
+    fontSize: 11,
+    fontFamily: "Inter_600SemiBold",
+  },
+  showControlsBtn: {
+    position: "absolute",
+    alignSelf: "center",
+    zIndex: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  showControlsText: {
+    fontSize: 12,
+    fontFamily: "Inter_700Bold",
   },
   dmTile: {
     flex: 1, borderRadius: 14, borderWidth: 1,
