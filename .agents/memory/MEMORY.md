@@ -111,3 +111,4 @@
 - [Dashcam permission handoff](dashcam-permission-handoff.md) — checklist owns first-time prompts; quick start requires existing camera grant; pending native starts need a timeout escape.
 - [AppState audio cleanup](appstate-audio-cleanup.md) — background-transition handlers must never call nonessential audio helpers that can throw and break lifecycle handoffs.
 - [Speed-bump infrastructure alerts](speed-bump-infrastructure-alerts.md) — permanent OSM catalogue stays separate from incidents and speed zones; alert only ahead on the chosen route.
+- [Active-drive map-first layout](active-drive-map-first.md) — map is primary; keep safety actions visible and disclose secondary score/share/details on demand.

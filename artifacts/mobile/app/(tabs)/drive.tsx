@@ -337,6 +337,9 @@ export default function DriveScreen() {
   const [nameInput, setNameInput] = useState("");
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
   const [showNearbySheet, setShowNearbySheet] = useState(false);
+  // Keep the active-drive surface map-first. The safety actions stay visible,
+  // while secondary trip details open on demand.
+  const [driveControlsExpanded, setDriveControlsExpanded] = useState(false);
   // Destination picker modal — opened from the pre-trip idle screen
   const [showDestPicker, setShowDestPicker] = useState(false);
   // When true: hide pre-trip screen, show map + route preview sheet so the
@@ -381,6 +384,12 @@ export default function DriveScreen() {
     }, 60_000);
     return () => clearInterval(timer);
   }, [tripActive, refreshRoadChannelsSetting]);
+
+  // Each new drive starts map-first. The expanded details state is local UI
+  // state, not a preference that should carry into the next trip.
+  useEffect(() => {
+    if (tripActive) setDriveControlsExpanded(false);
+  }, [tripActive]);
 
   useEffect(() => {
     if (!roadChannelsEnabled) setShowRoadVoice(false);
@@ -3419,6 +3428,16 @@ export default function DriveScreen() {
           {/* Compact status row: trial-drive allowance on the left and Road
               Channels voice reporting on the far right. */}
           <View style={styles.driveStatusRow}>
+            <View style={styles.driveLiveMeta}>
+              <Ionicons name="time-outline" size={17} color={c.primary} />
+              <Text style={[styles.driveLiveMetaValue, { color: c.foreground }]}>
+                {durationStr(tripElapsedS)}
+              </Text>
+              <View style={[styles.driveLiveMetaDot, { backgroundColor: c.mutedForeground }]} />
+              <Text style={[styles.driveLiveMetaValue, { color: c.foreground }]}>
+                {distStr(driveScore.distanceM)}
+              </Text>
+            </View>
             {showFreeDriveCounter ? (
               <View
                 style={[
@@ -3460,11 +3479,16 @@ export default function DriveScreen() {
             )}
           </View>
 
-          {/* Title row: "Drive Safely" · ETA (flex spacer) · SOS · End Trip
-               The ETA Text always renders (flex:1) so SOS+End Trip stay pinned
-               to the far right even when no route is active.               */}
+          {/* Compact action row: no menu-style "Drive Safely" heading. Keep
+              the emergency and trip-ending controls visible over the map. */}
           <View style={styles.dmPanelTitleRow}>
-            <Text style={[styles.dmPanelTitle, { color: c.foreground }]}>Drive Safely</Text>
+            <View style={[styles.liveDriveLabel, {
+              backgroundColor: c.speedDanger + "16",
+              borderColor: c.speedDanger + "38",
+            }]}>
+              <View style={[styles.livePillDot, { backgroundColor: c.speedDanger }]} />
+              <Text style={[styles.liveDriveLabelText, { color: c.speedDanger }]}>LIVE</Text>
+            </View>
             <Text style={[styles.dmPanelEta, { color: c.mutedForeground }]} numberOfLines={1}>
               {activeRoute != null
                 ? `${durationStr(activeRoute.durationS)} · ${distStr(activeRoute.distanceM)} left`
@@ -3484,9 +3508,9 @@ export default function DriveScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Stat tiles: Share Trip · Driving Score · Duration · Distance
-              Current Speed removed — it's already prominent on the map dial. */}
-          {(() => {
+          {/* Secondary details stay available, but do not take map height until
+              the driver asks for them. Current speed is already on the map dial. */}
+          {driveControlsExpanded && (() => {
             const sc  = driveScore.score;
             const clr = getScoreColor(sc);
             const durTxt = (() => {
@@ -3557,6 +3581,35 @@ export default function DriveScreen() {
               </View>
             );
           })()}
+
+          <TouchableOpacity
+            style={[styles.driveControlsToggle, {
+              backgroundColor: isDark ? "#191E1B" : c.muted,
+              borderColor: c.tileBorder,
+            }]}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              setDriveControlsExpanded((expanded) => !expanded);
+            }}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={driveControlsExpanded ? "Hide drive details" : "Show more drive controls"}
+            testID="drive-controls-toggle"
+          >
+            <Ionicons
+              name={driveControlsExpanded ? "chevron-down" : "chevron-up"}
+              size={16}
+              color={c.mutedForeground}
+            />
+            <Text style={[styles.driveControlsToggleText, { color: c.mutedForeground }]}>
+              {driveControlsExpanded ? "Hide details" : "More controls"}
+            </Text>
+            {!driveControlsExpanded && (
+              <Text style={[styles.driveControlsHint, { color: c.mutedForeground }]}>
+                Score · time · distance · share
+              </Text>
+            )}
+          </TouchableOpacity>
 
           {/* Bottom row: Dashcam toggle · red Stop Drive · Audio Alerts toggle */}
           <View style={styles.dmBottomRow}>
@@ -5355,6 +5408,20 @@ const styles = StyleSheet.create({
     flexDirection: "row", alignItems: "center", gap: 10,
     paddingTop: 6, paddingBottom: 10,
   },
+  liveDriveLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  liveDriveLabelText: {
+    fontSize: 11,
+    fontFamily: "Inter_700Bold",
+    letterSpacing: 0.8,
+  },
   dmPanelTitle: { fontSize: 18, fontFamily: "Inter_700Bold", flexShrink: 0 },
   dmPanelEta:   { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium", textAlign: "right", marginRight: 4 },
   endTripBtn: {
@@ -5367,6 +5434,26 @@ const styles = StyleSheet.create({
   },
   endTripBtnTxt: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF" },
   dmTileRow: { flexDirection: "row", gap: 8 },
+  driveControlsToggle: {
+    minHeight: 34,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    marginTop: 2,
+  },
+  driveControlsToggleText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+  },
+  driveControlsHint: {
+    fontSize: 10,
+    fontFamily: "Inter_400Regular",
+    marginLeft: 2,
+  },
   dmTile: {
     flex: 1, borderRadius: 14, borderWidth: 1,
     paddingVertical: 10, paddingHorizontal: 4,
@@ -5463,6 +5550,23 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.13, shadowRadius: 16, elevation: 16,
   },
   liveTripShareRow:     { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10 },
+  driveLiveMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
+  },
+  driveLiveMetaValue: {
+    fontSize: 14,
+    fontFamily: "Inter_700Bold",
+    fontVariant: ["tabular-nums"],
+  },
+  driveLiveMetaDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginHorizontal: 1,
+  },
   liveTripShareIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   liveTripShareTitle:   { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   liveTripShareSub:     { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
