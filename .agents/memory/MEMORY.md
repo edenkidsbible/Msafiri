@@ -115,3 +115,4 @@
 - [Expo Go stale Replit session](expo-go-stale-replit-session.md) — verify the manifest bundle; clear Metro/.expo caches when a normal restart leaves Expo Go on old UI.
 - [Android map styling](android-map-style.md) — Android stays on Google Maps with an Apple-inspired light style; iOS remains native Apple Maps.
 - [Scheduled notification policy](scheduled-notification-policy.md) — one usage tip daily at 13:00 EAT; no auto road checks; keep notification titles within 20 visible characters.
+- [Per-platform app version builds](app-version-builds.md) — iOS/Android counters are independent; force checks compare native build after semantic version.

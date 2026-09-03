@@ -34,7 +34,8 @@ export function getCurrentBuildNumber(): number {
   }
   if (Platform.OS === "android") {
     const vc = (Constants.expoConfig?.android as any)?.versionCode;
-    return vc ?? 1;
+    const parsed = typeof vc === "number" ? vc : parseInt(String(vc ?? ""), 10);
+    return Number.isFinite(parsed) ? parsed : 1;
   }
   return 1;
 }

@@ -19,6 +19,18 @@ function semverCmp(a: string, b: string): number {
   return aPat - bPat;
 }
 
+/** Compare the full native release identity: semantic version, then build. */
+export function isReleaseNewer(
+  clientVersion: string,
+  clientBuild: number,
+  releaseVersion: string,
+  releaseBuild: number,
+): boolean {
+  const versionComparison = semverCmp(clientVersion, releaseVersion);
+  return versionComparison < 0 ||
+    (versionComparison === 0 && clientBuild < releaseBuild);
+}
+
 /**
  * GET /app/version?platform=ios&version=1.0.0&build=1
  *
@@ -30,7 +42,8 @@ router.get("/app/version", async (req: Request, res: Response) => {
   try {
     const platform = (req.query["platform"] as string) ?? "all";
     const clientVersion = (req.query["version"] as string) ?? "0.0.0";
-    const clientBuild = parseInt((req.query["build"] as string) ?? "0", 10);
+    const parsedClientBuild = parseInt((req.query["build"] as string) ?? "0", 10);
+    const clientBuild = Number.isFinite(parsedClientBuild) ? parsedClientBuild : 0;
 
     // Get all live releases, newest first
     const liveReleases = await db
@@ -72,26 +85,35 @@ router.get("/app/version", async (req: Request, res: Response) => {
       });
     }
 
-    // Sort by semver to find actual latest
-    const sorted = [...applicable].sort((a, b) => semverCmp(b.version, a.version));
+    // Sort by semver and then native build to find the actual latest release.
+    const sortNewestFirst = (a: typeof applicable[number], b: typeof applicable[number]) =>
+      semverCmp(b.version, a.version) || b.buildNumber - a.buildNumber;
+    const sorted = [...applicable].sort(sortNewestFirst);
     const latest = sorted[0]!;
 
     // Minimum required version = the highest force-update release
     const forceReleases = applicable.filter((r) => r.isForceUpdate);
-    const forceSorted = [...forceReleases].sort((a, b) =>
-      semverCmp(b.version, a.version)
-    );
+    const forceSorted = [...forceReleases].sort(sortNewestFirst);
     const minRelease = forceSorted[0] ?? null;
 
     const minRequiredVersion = minRelease?.version ?? null;
     const minRequiredBuild   = minRelease?.buildNumber ?? null;
 
-    const isForceRequired =
-      minRequiredVersion !== null
-        ? semverCmp(clientVersion, minRequiredVersion) < 0
-        : false;
+    const isForceRequired = minRelease
+      ? isReleaseNewer(
+          clientVersion,
+          clientBuild,
+          minRelease.version,
+          minRelease.buildNumber,
+        )
+      : false;
 
-    const updateAvailable = semverCmp(clientVersion, latest.version) < 0;
+    const updateAvailable = isReleaseNewer(
+      clientVersion,
+      clientBuild,
+      latest.version,
+      latest.buildNumber,
+    );
 
     // Pick the most informative release notes: the latest release the client
     // doesn't have yet (or the force release if upgrade is required)
