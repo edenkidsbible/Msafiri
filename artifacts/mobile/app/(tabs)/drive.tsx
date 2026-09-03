@@ -2389,15 +2389,6 @@ export default function DriveScreen() {
         </AnimatedTouchable>
       )}
 
-      {/* ── Compact LIVE pill — replaces the bulky trip info card so the top
-          stays clear for nearby-alert overlays. Styled like the red REC pill. ── */}
-      {tripActive && navDestination != null && (
-        <View style={[styles.livePill, { top: topInset + (primaryAlert ? (isOffline ? 126 : 90) : (isOffline ? 44 : 16)) }]}>
-          <View style={styles.livePillDot} />
-          <Text style={styles.livePillTxt}>LIVE</Text>
-        </View>
-      )}
-
       {/* ── Offline mode status — in the safe header, never inside the drive
           panel where dashcam/audio actions and the tab bar can cover it. ─── */}
       {isOffline && Platform.OS !== "web" && (
@@ -5525,21 +5516,7 @@ const styles = StyleSheet.create({
   dmStopSquare: { width: 20, height: 20, borderRadius: 5, backgroundColor: "#FFF" },
   dmStopLbl: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
 
-  // ── Compact LIVE pill — replaces the old trip info card. Styled to match
-  // the red "● REC" dashcam pill; sits next to the speed gauge (left: 14,
-  // width: 96) so the rest of the top row stays free for alert overlays.
-  livePill: {
-    position: "absolute",
-    left: 120,   // 14 (gauge left) + 96 (gauge width) + 10 gap
-    zIndex: 19,
-    flexDirection: "row", alignItems: "center", gap: 5,
-    backgroundColor: "#B71C1C", borderRadius: 16,
-    paddingHorizontal: 12, paddingVertical: 7,
-    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3, shadowRadius: 6, elevation: 8,
-  },
   livePillDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: "#FF5252" },
-  livePillTxt: { color: "#FFF", fontSize: 12, fontFamily: "Inter_700Bold", letterSpacing: 1 },
 
   // ── Live Trip bottom sheet ─────────────────────────────────────────────────
   liveTripSheet: {
