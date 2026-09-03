@@ -90,6 +90,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     { href: "/vehicle-claims",     label: "Vehicle Claims",    icon: Flag,         feature: "reports" },
     { href: "/road-channels",      label: "Road Channels",     icon: Radio,        feature: "road_channels" },
     { href: "/speed-zones",        label: "Speed Zones",       icon: Gauge,        feature: "speed_zones" },
+    { href: "/speed-bumps",        label: "Speed Bumps",       icon: AlertCircle,  feature: "speed_zones" },
     { href: "/pois",               label: "Points of Interest",icon: MapPin,       feature: "pois" },
   ];
   const coreNav = coreNavAll.filter((item) => can(item.feature));

@@ -6,6 +6,7 @@ import reportsRouter from "./reports.js";
 import usersRouter from "./users.js";
 import statsRouter from "./stats.js";
 import speedZonesRouter from "./speedZones.js";
+import speedBumpsRouter from "./speedBumps.js";
 import auditLogsRouter from "./audit-logs.js";
 import notificationsRouter from "./notifications.js";
 import subscribersRouter from "./subscribers.js";
@@ -74,6 +75,7 @@ router.use(searchRouter);
 // checked per-route inside reports.ts, so it isn't gated here.
 router.use(reportsRouter);
 router.use(scopedFeature("/speed-zones", "speed_zones"), speedZonesRouter);
+router.use(scopedFeature("/speed-bumps", "speed_zones"), speedBumpsRouter);
 router.use(scopedFeature("/notifications", "notifications"), notificationsRouter);
 router.use(scopedFeature("/subscribers", "subscribers"), subscribersRouter);
 router.use(scopedFeature("/audit-logs", "audit_log"), auditLogsRouter);

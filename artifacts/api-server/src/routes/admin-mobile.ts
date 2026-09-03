@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import rateLimit, { ipKeyGenerator } from "express-rate-limit";
-import { db, communityReportsTable, speedZonesTable } from "@workspace/db";
+import { db, communityReportsTable, speedZonesTable, speedBumpsTable } from "@workspace/db";
 import { and, eq, isNotNull, inArray, desc } from "drizzle-orm";
 import { patchStaticZoneFile } from "../startup/syncStaticZones";
 
@@ -9,6 +9,59 @@ import { patchStaticZoneFile } from "../startup/syncStaticZones";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const router = Router();
+
+function mobileSpeedBump(row: typeof speedBumpsTable.$inferSelect) {
+  return {
+    ...row,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+router.get("/admin-mobile/speed-bumps", adminMobileAuth, async (req: Request, res: Response) => {
+  try {
+    const conditions = [];
+    if (req.query.status) conditions.push(eq(speedBumpsTable.status, String(req.query.status)));
+    if (req.query.featureType) conditions.push(eq(speedBumpsTable.featureType, String(req.query.featureType)));
+    const rows = await db.select().from(speedBumpsTable)
+      .where(conditions.length ? and(...conditions) : undefined)
+      .orderBy(desc(speedBumpsTable.updatedAt))
+      .limit(Math.min(500, Number(req.query.limit) || 500));
+    return res.json({ bumps: rows.map(mobileSpeedBump) });
+  } catch (err) {
+    console.error("[admin-mobile/speed-bumps/list]", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.patch("/admin-mobile/speed-bumps/:id", adminMobileAuth, async (req: Request, res: Response) => {
+  try {
+    const allowed = ["name", "road", "description", "featureType", "lat", "lng", "direction", "alertEnabled", "verified", "status"] as const;
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    for (const key of allowed) if (key in req.body) patch[key] = req.body[key];
+    const [row] = await db.update(speedBumpsTable).set(patch)
+      .where(eq(speedBumpsTable.id, req.params.id as string)).returning();
+    if (!row) return res.status(404).json({ error: "Speed bump not found" });
+    return res.json(mobileSpeedBump(row));
+  } catch (err) {
+    console.error("[admin-mobile/speed-bumps/update]", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.delete("/admin-mobile/speed-bumps/:id", adminMobileAuth, async (req: Request, res: Response) => {
+  try {
+    const [row] = await db.update(speedBumpsTable)
+      .set({ status: "inactive", alertEnabled: false, updatedAt: new Date() })
+      .where(eq(speedBumpsTable.id, req.params.id as string))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Speed bump not found" });
+    return res.json(mobileSpeedBump(row));
+  } catch (err) {
+    console.error("[admin-mobile/speed-bumps/remove]", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // ── Brute-force protection for mobile PIN ─────────────────────────────────────
 // 5 attempts per IP per 15 minutes.

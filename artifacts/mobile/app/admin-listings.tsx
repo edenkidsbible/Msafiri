@@ -15,10 +15,14 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  KeyboardAvoidingView,
+  Modal,
   Platform,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
@@ -112,9 +116,30 @@ type AdminZone = {
   updatedAt: string;
 };
 
-type Section    = "reports" | "cameras";
+type AdminSpeedBump = {
+  id: string;
+  name: string;
+  road: string | null;
+  description: string | null;
+  featureType: string | null;
+  lat: number | null;
+  lng: number | null;
+  direction: string | null;
+  alertEnabled: boolean;
+  verified: boolean;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  source?: string | null;
+};
+
+type SpeedBumpEditFields = Pick<AdminSpeedBump,
+  "name" | "road" | "description" | "featureType" | "direction" | "alertEnabled" | "verified" | "status">;
+
+type Section    = "reports" | "cameras" | "speedBumps";
 type ReportTab  = "pending" | "active";
 type ZoneFilter = "all" | "camera" | "police" | "zone";
+type SpeedBumpFilter = "all" | "unverified" | "alerts";
 
 // Picker target shared by both reports and zones
 type LocationTarget = {
@@ -123,6 +148,7 @@ type LocationTarget = {
   lng: number;
   road: string | null;
   forZone: boolean;
+  forSpeedBump?: boolean;
   name?: string; // zone name for the modal title
 };
 
@@ -163,9 +189,16 @@ export default function AdminListingsScreen() {
   const [pcLoading,      setPcLoading]      = useState(false);
   const [pcActioningId,  setPcActioningId]  = useState<string | null>(null);
 
+  // Speed bumps (including imported OpenStreetMap records)
+  const [speedBumps, setSpeedBumps] = useState<AdminSpeedBump[]>([]);
+  const [sbLoading, setSbLoading] = useState(false);
+  const [sbActioningId, setSbActioningId] = useState<string | null>(null);
+  const [speedBumpFilter, setSpeedBumpFilter] = useState<SpeedBumpFilter>("all");
+
   // Edit sheets
   const [editReport,  setEditReport]  = useState<AdminReport | null>(null);
   const [editZone,    setEditZone]    = useState<AdminZone | null>(null);
+  const [editSpeedBump, setEditSpeedBump] = useState<AdminSpeedBump | null>(null);
 
   // Location picker
   const [locTarget, setLocTarget] = useState<LocationTarget | null>(null);
@@ -233,6 +266,24 @@ export default function AdminListingsScreen() {
       fetchPendingCams();
     }
   }, [section, fetchZones, fetchPendingCams]);
+
+  const fetchSpeedBumps = useCallback(async () => {
+    setSbLoading(true);
+    try {
+      const data = await adminFetch<{ bumps: AdminSpeedBump[] }>(
+        "GET", "/admin-mobile/speed-bumps?status=active&limit=500"
+      );
+      setSpeedBumps(data.bumps ?? []);
+    } catch {
+      // Keep the current list if the request fails.
+    } finally {
+      setSbLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (section === "speedBumps") fetchSpeedBumps();
+  }, [section, fetchSpeedBumps]);
 
   // ── Report actions (Reports section) ─────────────────────────────────────
   const approve = useCallback(async (id: string) => {
@@ -332,13 +383,41 @@ export default function AdminListingsScreen() {
     );
   }, []);
 
+  const patchSpeedBump = useCallback(async (id: string, fields: Partial<AdminSpeedBump>) => {
+    await adminFetch("PATCH", `/admin-mobile/speed-bumps/${id}`, fields);
+    setSpeedBumps((prev) => prev.map((b) => b.id === id ? { ...b, ...fields } : b));
+  }, []);
+
+  const removeSpeedBump = useCallback((id: string) => {
+    Alert.alert("Remove Speed Bump", "This will remove this listing from active alerts.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          setSbActioningId(id);
+          try {
+            await adminFetch("DELETE", `/admin-mobile/speed-bumps/${id}`);
+            setSpeedBumps((prev) => prev.filter((b) => b.id !== id));
+          } catch {
+            Alert.alert("Error", "Failed to remove speed bump.");
+          } finally {
+            setSbActioningId(null);
+          }
+        },
+      },
+    ]);
+  }, []);
+
   // ── Save location (report or zone) ────────────────────────────────────────
   const saveLocation = useCallback(async (
     lat: number, lng: number, roadName?: string
   ) => {
     if (!locTarget) return;
-    const { id, forZone } = locTarget;
-    if (forZone) {
+    const { id, forZone, forSpeedBump } = locTarget;
+    if (forSpeedBump) {
+      await patchSpeedBump(id, { lat, lng, ...(roadName !== undefined ? { road: roadName } : {}) });
+    } else if (forZone) {
       await adminFetch("PATCH", `/admin-mobile/zones/${id}/location`, { lat, lng });
       setZones((prev) =>
         prev.map((z) => z.id === id ? { ...z, lat, lng } : z)
@@ -351,7 +430,7 @@ export default function AdminListingsScreen() {
         prev.map((r) => r.id === id ? { ...r, lat, lng, roadName: roadName ?? r.roadName } : r)
       );
     }
-  }, [locTarget]);
+  }, [locTarget, patchSpeedBump]);
 
   if (!isAdmin) return null;
 
@@ -518,6 +597,85 @@ export default function AdminListingsScreen() {
     );
   }
 
+  // ── Speed bump card ──────────────────────────────────────────────────────
+  function renderSpeedBump({ item: bump }: { item: AdminSpeedBump }) {
+    const busy = sbActioningId === bump.id;
+    const imported = ["osm", "openstreetmap"].some((source) => bump.source?.toLowerCase().includes(source));
+    return (
+      <View style={[ss.card, { backgroundColor: c.card, borderColor: c.tileBorder }]}>
+        <View style={ss.cardTop}>
+          <View style={[ss.typePill, { backgroundColor: "#F59E0B22" }]}>
+            <Text style={[ss.typeEmoji, { fontFamily: EMOJI_FONT_FAMILY }]}>🚧</Text>
+            <Text style={[ss.typeLabel, { color: "#D97706" }]}>
+              {bump.featureType || "Speed Bump"}
+            </Text>
+          </View>
+          {imported && (
+            <View style={[ss.statusPill, { backgroundColor: "#1565C022" }]}>
+              <Text style={[ss.statusTxt, { color: "#1565C0" }]}>OSM import</Text>
+            </View>
+          )}
+          <View style={[ss.statusPill, { backgroundColor: bump.verified ? "#22C55E22" : "#F59E0B22" }]}>
+            <Text style={[ss.statusTxt, { color: bump.verified ? "#16A34A" : "#D97706" }]}>
+              {bump.verified ? "Verified ✓" : "Needs verification"}
+            </Text>
+          </View>
+        </View>
+        <Text style={[ss.road, { color: c.foreground }]} numberOfLines={1}>{bump.name}</Text>
+        {bump.road
+          ? <Text style={[ss.meta, { color: c.mutedForeground }]} numberOfLines={1}>📍 {bump.road}{bump.direction ? ` · ${bump.direction}` : ""}</Text>
+          : bump.lat != null && bump.lng != null
+            ? <Text style={[ss.meta, { color: c.mutedForeground }]}>{bump.lat.toFixed(5)}, {bump.lng.toFixed(5)}</Text>
+            : <Text style={[ss.meta, { color: c.mutedForeground }]}>No location set</Text>}
+        {!!bump.description && <Text style={[ss.meta, { color: c.mutedForeground }]} numberOfLines={2}>{bump.description}</Text>}
+        <Text style={[ss.meta, { color: bump.alertEnabled ? "#16A34A" : c.mutedForeground }]}>
+          {bump.alertEnabled ? "Alerts enabled" : "Alerts disabled"}
+        </Text>
+        <View style={[ss.actionRow, { marginTop: 8 }]}>
+          <TouchableOpacity
+            style={[ss.btnOutline, { borderColor: bump.verified ? "#22C55E77" : "#F59E0B77" }, busy && ss.btnDisabled]}
+            onPress={() => void patchSpeedBump(bump.id, { verified: !bump.verified }).catch(() => Alert.alert("Error", "Failed to update verification."))}
+            disabled={busy}
+          >
+            <Ionicons name={bump.verified ? "checkmark-circle" : "checkmark-circle-outline"} size={14} color={bump.verified ? "#16A34A" : "#D97706"} />
+            <Text style={[ss.btnTxtColor, { color: bump.verified ? "#16A34A" : "#D97706" }]}>{bump.verified ? "Verified" : "Verify"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[ss.btnOutline, { borderColor: c.border }, busy && ss.btnDisabled]}
+            onPress={() => void patchSpeedBump(bump.id, { alertEnabled: !bump.alertEnabled }).catch(() => Alert.alert("Error", "Failed to update alerts."))}
+            disabled={busy}
+          >
+            <Ionicons name={bump.alertEnabled ? "notifications" : "notifications-off"} size={14} color={c.foreground} />
+            <Text style={[ss.btnTxtColor, { color: c.foreground }]}>{bump.alertEnabled ? "Mute" : "Alert"}</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={ss.actionRow}>
+          <TouchableOpacity style={[ss.btnOutline, { borderColor: c.border }, busy && ss.btnDisabled]} onPress={() => setEditSpeedBump(bump)} disabled={busy}>
+            <Ionicons name="pencil" size={14} color={c.foreground} />
+            <Text style={[ss.btnTxtColor, { color: c.foreground }]}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[ss.btnOutline, { borderColor: c.border }, busy && ss.btnDisabled]}
+            onPress={() => setLocTarget({ id: bump.id, lat: bump.lat ?? 0, lng: bump.lng ?? 0, road: bump.road, forZone: false, forSpeedBump: true, name: bump.name })}
+            disabled={busy}
+          >
+            <Ionicons name="location" size={14} color="#1565C0" />
+            <Text style={[ss.btnTxtColor, { color: "#1565C0" }]}>Relocate</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[ss.iconBtn, { borderColor: c.destructive + "55" }, busy && ss.btnDisabled]} onPress={() => removeSpeedBump(bump.id)} disabled={busy}>
+            <Ionicons name="trash" size={15} color={c.destructive} />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  const filteredSpeedBumps = speedBumps.filter((bump) =>
+    speedBumpFilter === "all" ||
+    (speedBumpFilter === "unverified" && !bump.verified) ||
+    (speedBumpFilter === "alerts" && bump.alertEnabled)
+  );
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <SafeAreaView style={[ss.root, { backgroundColor: c.background }]}>
@@ -534,7 +692,8 @@ export default function AdminListingsScreen() {
         <TouchableOpacity
           onPress={() => {
             if (section === "reports") fetchReports();
-            else { fetchZones(); fetchPendingCams(); }
+            else if (section === "cameras") { fetchZones(); fetchPendingCams(); }
+            else fetchSpeedBumps();
           }}
           style={ss.refreshBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -543,7 +702,7 @@ export default function AdminListingsScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Section switcher: Reports | Cameras */}
+       {/* Section switcher */}
       <View style={[ss.sectionRow, { borderBottomColor: c.border }]}>
         {(["reports", "cameras"] as Section[]).map((s) => (
           <TouchableOpacity
@@ -552,12 +711,12 @@ export default function AdminListingsScreen() {
             onPress={() => setSection(s)}
           >
             <Ionicons
-              name={s === "reports" ? "flag" : "camera"}
+              name={s === "reports" ? "flag" : s === "cameras" ? "camera" : "warning"}
               size={15}
               color={section === s ? c.primary : c.mutedForeground}
             />
             <Text style={[ss.sectionTxt, { color: section === s ? c.primary : c.mutedForeground }]}>
-              {s === "reports" ? "Reports" : "Cameras & Zones"}
+              {s === "reports" ? "Reports" : s === "cameras" ? "Cameras & Zones" : "Speed Bumps"}
             </Text>
           </TouchableOpacity>
         ))}
@@ -760,6 +919,47 @@ export default function AdminListingsScreen() {
         </>
       )}
 
+      {/* ── SPEED BUMPS section ──────────────────────────────────────────── */}
+      {section === "speedBumps" && (
+        <>
+          <View style={[ss.filterRow, { backgroundColor: c.muted }]}>
+            {(["all", "unverified", "alerts"] as SpeedBumpFilter[]).map((filter) => {
+              const active = speedBumpFilter === filter;
+              return (
+                <TouchableOpacity key={filter} style={[ss.filterBtn, active && { backgroundColor: c.card }]} onPress={() => setSpeedBumpFilter(filter)}>
+                  <Text style={[ss.filterTxt, { color: active ? c.primary : c.mutedForeground }]}>
+                    {filter === "all" ? "All" : filter === "unverified" ? "Needs Verify" : "Alerts On"}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {sbLoading ? (
+            <View style={ss.center}>
+              <ActivityIndicator size="large" color={c.primary} />
+              <Text style={[ss.loadingTxt, { color: c.mutedForeground }]}>Loading speed bumps…</Text>
+            </View>
+          ) : filteredSpeedBumps.length === 0 ? (
+            <View style={ss.center}>
+              <Text style={ss.emptyIcon}>🚧</Text>
+              <Text style={[ss.emptyTitle, { color: c.foreground }]}>No speed bumps found</Text>
+              <Text style={[ss.emptyText, { color: c.mutedForeground }]}>
+                {speedBumpFilter === "all" ? "No active speed bump listings are available." : "No speed bumps match this filter."}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredSpeedBumps}
+              keyExtractor={(bump) => bump.id}
+              contentContainerStyle={{ padding: 16, gap: 12 }}
+              showsVerticalScrollIndicator={false}
+              ListHeaderComponent={<Text style={[ss.countLabel, { color: c.mutedForeground }]}>{filteredSpeedBumps.length} speed bump{filteredSpeedBumps.length !== 1 ? "s" : ""}</Text>}
+              renderItem={renderSpeedBump}
+            />
+          )}
+        </>
+      )}
+
       {/* ── Report edit sheet ─────────────────────────────────────────────── */}
       {editReport && (
         <AdminReportEditSheet
@@ -780,6 +980,15 @@ export default function AdminListingsScreen() {
         />
       )}
 
+      {editSpeedBump && (
+        <SpeedBumpEditSheet
+          speedBump={editSpeedBump}
+          visible={!!editSpeedBump}
+          onClose={() => setEditSpeedBump(null)}
+          onSave={async (fields) => patchSpeedBump(editSpeedBump.id, fields)}
+        />
+      )}
+
       {/* ── Location picker (reports + zones) ────────────────────────────── */}
       {locTarget && Platform.OS !== "web" && (
         <AdminLocationPickerModal
@@ -788,13 +997,129 @@ export default function AdminListingsScreen() {
           initialLat={locTarget.lat}
           initialLng={locTarget.lng}
           initialRoadName={locTarget.road ?? undefined}
-          title={locTarget.forZone ? `Fix Location — ${locTarget.name ?? "Zone"}` : "Fix Report Location"}
-          successMessage={locTarget.forZone ? "Zone location has been saved." : "The report position has been saved."}
+          title={locTarget.forSpeedBump ? `Relocate — ${locTarget.name ?? "Speed Bump"}` : locTarget.forZone ? `Fix Location — ${locTarget.name ?? "Zone"}` : "Fix Report Location"}
+          successMessage={locTarget.forSpeedBump ? "Speed bump location has been saved." : locTarget.forZone ? "Zone location has been saved." : "The report position has been saved."}
           onClose={() => setLocTarget(null)}
           onSave={saveLocation}
         />
       )}
     </SafeAreaView>
+  );
+}
+
+function SpeedBumpEditSheet({
+  speedBump,
+  visible,
+  onClose,
+  onSave,
+}: {
+  speedBump: AdminSpeedBump;
+  visible: boolean;
+  onClose: () => void;
+  onSave: (fields: SpeedBumpEditFields) => Promise<void>;
+}) {
+  const c = useColors();
+  const [name, setName] = useState(speedBump.name);
+  const [road, setRoad] = useState(speedBump.road ?? "");
+  const [description, setDescription] = useState(speedBump.description ?? "");
+  const [featureType, setFeatureType] = useState(speedBump.featureType ?? "speed_bump");
+  const [direction, setDirection] = useState(speedBump.direction ?? "");
+  const [alertEnabled, setAlertEnabled] = useState(speedBump.alertEnabled);
+  const [verified, setVerified] = useState(speedBump.verified);
+  const [status, setStatus] = useState(speedBump.status);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!visible) return;
+    setName(speedBump.name);
+    setRoad(speedBump.road ?? "");
+    setDescription(speedBump.description ?? "");
+    setFeatureType(speedBump.featureType ?? "speed_bump");
+    setDirection(speedBump.direction ?? "");
+    setAlertEnabled(speedBump.alertEnabled);
+    setVerified(speedBump.verified);
+    setStatus(speedBump.status);
+  }, [visible, speedBump]);
+
+  const save = async () => {
+    if (!name.trim()) {
+      Alert.alert("Missing field", "Speed bump name is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({
+        name: name.trim(),
+        road: road.trim() || null,
+        description: description.trim() || null,
+        featureType: featureType.trim() || null,
+        direction: direction.trim() || null,
+        alertEnabled,
+        verified,
+        status,
+      });
+      onClose();
+    } catch (err: unknown) {
+      Alert.alert("Save failed", err instanceof Error ? err.message : "Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const input = (label: string, value: string, setter: (value: string) => void, placeholder: string, multi = false) => (
+    <>
+      <Text style={[ss.editLabel, { color: c.mutedForeground }]}>{label}</Text>
+      <TextInput
+        style={[ss.editInput, multi && ss.editInputMulti, { color: c.foreground, backgroundColor: c.muted, borderColor: c.border }]}
+        value={value}
+        onChangeText={setter}
+        placeholder={placeholder}
+        placeholderTextColor={c.mutedForeground}
+        multiline={multi}
+      />
+    </>
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={ss.editBackdrop}>
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={[ss.editSheet, { backgroundColor: c.card }]}>
+          <View style={[ss.editHandle, { backgroundColor: c.mutedForeground + "55" }]} />
+          <View style={ss.editHeader}>
+            <Text style={[ss.editTitle, { color: c.foreground }]}>Edit Speed Bump</Text>
+            <TouchableOpacity onPress={onClose} disabled={saving}><Ionicons name="close" size={22} color={c.mutedForeground} /></TouchableOpacity>
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            {input("NAME *", name, setName, "Speed bump name")}
+            {input("ROAD", road, setRoad, "Road name")}
+            {input("FEATURE TYPE", featureType, setFeatureType, "e.g. speed_bump")}
+            {input("DIRECTION", direction, setDirection, "e.g. northbound")}
+            {input("DESCRIPTION", description, setDescription, "Optional notes", true)}
+            <View style={ss.editToggleRow}>
+              <TouchableOpacity style={[ss.editToggle, { borderColor: verified ? "#22C55E" : c.border }]} onPress={() => setVerified((value) => !value)}>
+                <Ionicons name={verified ? "checkmark-circle" : "checkmark-circle-outline"} size={16} color={verified ? "#16A34A" : c.mutedForeground} />
+                <Text style={[ss.btnTxtColor, { color: c.foreground }]}>{verified ? "Verified" : "Unverified"}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[ss.editToggle, { borderColor: alertEnabled ? "#1565C0" : c.border }]} onPress={() => setAlertEnabled((value) => !value)}>
+                <Ionicons name={alertEnabled ? "notifications" : "notifications-off"} size={16} color={alertEnabled ? "#1565C0" : c.mutedForeground} />
+                <Text style={[ss.btnTxtColor, { color: c.foreground }]}>{alertEnabled ? "Alerts on" : "Alerts off"}</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={[ss.editLabel, { color: c.mutedForeground }]}>STATUS</Text>
+            <View style={ss.editToggleRow}>
+              {(["active", "inactive"] as const).map((value) => (
+                <TouchableOpacity key={value} style={[ss.editToggle, { borderColor: status === value ? c.primary : c.border, backgroundColor: status === value ? c.primary + "18" : "transparent" }]} onPress={() => setStatus(value)}>
+                  <Text style={[ss.btnTxtColor, { color: status === value ? c.primary : c.foreground }]}>{value === "active" ? "Active" : "Inactive"}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TouchableOpacity style={[ss.saveBtn, { backgroundColor: c.primary, opacity: saving ? 0.6 : 1 }]} onPress={save} disabled={saving}>
+              {saving ? <ActivityIndicator color="#FFF" size="small" /> : <><Ionicons name="checkmark-circle" size={16} color="#FFF" /><Text style={ss.saveTxt}>Save Changes</Text></>}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal>
   );
 }
 
@@ -950,6 +1275,26 @@ const ss = StyleSheet.create({
     borderWidth: 1.5,
     paddingVertical: 9,
   },
+  iconBtn: {
+    width: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    borderWidth: 1.5,
+  },
+  editBackdrop: { flex: 1, justifyContent: "flex-end", backgroundColor: "#00000060" },
+  editSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingTop: 12, maxHeight: "90%" },
+  editHandle: { width: 36, height: 4, borderRadius: 2, alignSelf: "center", marginBottom: 14 },
+  editHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  editTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  editLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.6, marginBottom: 6, marginTop: 14 },
+  editInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, fontFamily: "Inter_400Regular" },
+  editInputMulti: { height: 76, textAlignVertical: "top" },
+  editToggleRow: { flexDirection: "row", gap: 8 },
+  editToggle: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderWidth: 1, borderRadius: 10, paddingVertical: 10 },
+  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingVertical: 15, borderRadius: 14, marginTop: 20, marginBottom: 8 },
+  saveTxt: { color: "#FFF", fontSize: 16, fontFamily: "Inter_700Bold" },
   btnTxtWhite: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#FFF" },
   btnTxtColor: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   btnDisabled: { opacity: 0.5 },

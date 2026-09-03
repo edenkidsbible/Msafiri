@@ -37,6 +37,7 @@ import type {
   AdminListEmailsParams,
   AdminListPoisParams,
   AdminListReportsParams,
+  AdminListSpeedBumpsParams,
   AdminListSpeedZonesParams,
   AdminLoginInput,
   AdminLoginResult,
@@ -53,6 +54,8 @@ import type {
   AdminReportList,
   AdminReportUpdate,
   AdminSearchResult,
+  AdminSpeedBump,
+  AdminSpeedBumpList,
   AdminSpeedZone,
   AdminSpeedZoneList,
   AdminStats,
@@ -96,6 +99,8 @@ import type {
   PushCampaignList,
   PushDeviceStats,
   PushRegisterInput,
+  SpeedBumpInput,
+  SpeedBumpUpdate,
   SpeedZoneInput,
   SpeedZonePublicList,
   SpeedZoneUpdate,
@@ -3578,6 +3583,301 @@ export const useAdminDeleteSpeedZone = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getAdminDeleteSpeedZoneMutationOptions(options));
+    }
+
+export const getAdminListSpeedBumpsUrl = (params?: AdminListSpeedBumpsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/admin/speed-bumps?${stringifiedParams}` : `/api/admin/speed-bumps`
+}
+
+/**
+ * @summary List speed bumps and road calming features
+ */
+export const adminListSpeedBumps = async (params?: AdminListSpeedBumpsParams, options?: RequestInit): Promise<AdminSpeedBumpList> => {
+
+  return customFetch<AdminSpeedBumpList>(getAdminListSpeedBumpsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getAdminListSpeedBumpsQueryKey = (params?: AdminListSpeedBumpsParams,) => {
+    return [
+    `/api/admin/speed-bumps`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getAdminListSpeedBumpsQueryOptions = <TData = Awaited<ReturnType<typeof adminListSpeedBumps>>, TError = ErrorType<void>>(params?: AdminListSpeedBumpsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListSpeedBumps>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getAdminListSpeedBumpsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof adminListSpeedBumps>>> = ({ signal }) => adminListSpeedBumps(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof adminListSpeedBumps>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type AdminListSpeedBumpsQueryResult = NonNullable<Awaited<ReturnType<typeof adminListSpeedBumps>>>
+export type AdminListSpeedBumpsQueryError = ErrorType<void>
+
+
+/**
+ * @summary List speed bumps and road calming features
+ */
+
+export function useAdminListSpeedBumps<TData = Awaited<ReturnType<typeof adminListSpeedBumps>>, TError = ErrorType<void>>(
+ params?: AdminListSpeedBumpsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof adminListSpeedBumps>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getAdminListSpeedBumpsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAdminCreateSpeedBumpUrl = () => {
+
+
+
+
+  return `/api/admin/speed-bumps`
+}
+
+/**
+ * @summary Create a speed bump or related road-calming feature
+ */
+export const adminCreateSpeedBump = async (speedBumpInput: SpeedBumpInput, options?: RequestInit): Promise<AdminSpeedBump> => {
+
+  return customFetch<AdminSpeedBump>(getAdminCreateSpeedBumpUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(speedBumpInput)
+  }
+);}
+
+
+
+
+export const getAdminCreateSpeedBumpMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateSpeedBump>>, TError,{data: BodyType<SpeedBumpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminCreateSpeedBump>>, TError,{data: BodyType<SpeedBumpInput>}, TContext> => {
+
+const mutationKey = ['adminCreateSpeedBump'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminCreateSpeedBump>>, {data: BodyType<SpeedBumpInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  adminCreateSpeedBump(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminCreateSpeedBumpMutationResult = NonNullable<Awaited<ReturnType<typeof adminCreateSpeedBump>>>
+    export type AdminCreateSpeedBumpMutationBody = BodyType<SpeedBumpInput>
+    export type AdminCreateSpeedBumpMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a speed bump or related road-calming feature
+ */
+export const useAdminCreateSpeedBump = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminCreateSpeedBump>>, TError,{data: BodyType<SpeedBumpInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminCreateSpeedBump>>,
+        TError,
+        {data: BodyType<SpeedBumpInput>},
+        TContext
+      > => {
+      return useMutation(getAdminCreateSpeedBumpMutationOptions(options));
+    }
+
+export const getAdminUpdateSpeedBumpUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/speed-bumps/${id}`
+}
+
+/**
+ * @summary Update, relocate, verify, or enable alerts for a speed bump
+ */
+export const adminUpdateSpeedBump = async (id: string,
+    speedBumpUpdate: SpeedBumpUpdate, options?: RequestInit): Promise<AdminSpeedBump> => {
+
+  return customFetch<AdminSpeedBump>(getAdminUpdateSpeedBumpUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(speedBumpUpdate)
+  }
+);}
+
+
+
+
+export const getAdminUpdateSpeedBumpMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateSpeedBump>>, TError,{id: string;data: BodyType<SpeedBumpUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminUpdateSpeedBump>>, TError,{id: string;data: BodyType<SpeedBumpUpdate>}, TContext> => {
+
+const mutationKey = ['adminUpdateSpeedBump'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminUpdateSpeedBump>>, {id: string;data: BodyType<SpeedBumpUpdate>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  adminUpdateSpeedBump(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminUpdateSpeedBumpMutationResult = NonNullable<Awaited<ReturnType<typeof adminUpdateSpeedBump>>>
+    export type AdminUpdateSpeedBumpMutationBody = BodyType<SpeedBumpUpdate>
+    export type AdminUpdateSpeedBumpMutationError = ErrorType<void>
+
+    /**
+ * @summary Update, relocate, verify, or enable alerts for a speed bump
+ */
+export const useAdminUpdateSpeedBump = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminUpdateSpeedBump>>, TError,{id: string;data: BodyType<SpeedBumpUpdate>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminUpdateSpeedBump>>,
+        TError,
+        {id: string;data: BodyType<SpeedBumpUpdate>},
+        TContext
+      > => {
+      return useMutation(getAdminUpdateSpeedBumpMutationOptions(options));
+    }
+
+export const getAdminDeleteSpeedBumpUrl = (id: string,) => {
+
+
+
+
+  return `/api/admin/speed-bumps/${id}`
+}
+
+/**
+ * @summary Delete a speed bump
+ */
+export const adminDeleteSpeedBump = async (id: string, options?: RequestInit): Promise<DeleteResult> => {
+
+  return customFetch<DeleteResult>(getAdminDeleteSpeedBumpUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+export const getAdminDeleteSpeedBumpMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteSpeedBump>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof adminDeleteSpeedBump>>, TError,{id: string}, TContext> => {
+
+const mutationKey = ['adminDeleteSpeedBump'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof adminDeleteSpeedBump>>, {id: string}> = (props) => {
+          const {id} = props ?? {};
+
+          return  adminDeleteSpeedBump(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AdminDeleteSpeedBumpMutationResult = NonNullable<Awaited<ReturnType<typeof adminDeleteSpeedBump>>>
+
+    export type AdminDeleteSpeedBumpMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a speed bump
+ */
+export const useAdminDeleteSpeedBump = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof adminDeleteSpeedBump>>, TError,{id: string}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof adminDeleteSpeedBump>>,
+        TError,
+        {id: string},
+        TContext
+      > => {
+      return useMutation(getAdminDeleteSpeedBumpMutationOptions(options));
     }
 
 export const getGetAppVersionUrl = (params?: GetAppVersionParams,) => {

@@ -467,6 +467,85 @@ export interface SpeedZoneUpdate {
   verified?: boolean;
 }
 
+export type AdminSpeedBumpStatus = typeof AdminSpeedBumpStatus[keyof typeof AdminSpeedBumpStatus];
+
+
+export const AdminSpeedBumpStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export interface AdminSpeedBump {
+  id: string;
+  osmType: string;
+  osmId: string;
+  featureType: string;
+  name: string;
+  /** @nullable */
+  road?: string | null;
+  /** @nullable */
+  description?: string | null;
+  lat: number;
+  lng: number;
+  /** @nullable */
+  direction?: string | null;
+  source: string;
+  alertEnabled: boolean;
+  verified: boolean;
+  status: AdminSpeedBumpStatus;
+  /** @nullable */
+  createdBy?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminSpeedBumpList {
+  bumps: AdminSpeedBump[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface SpeedBumpInput {
+  /** @minLength 1 */
+  name: string;
+  /** @nullable */
+  road?: string | null;
+  /** @nullable */
+  description?: string | null;
+  featureType: string;
+  lat: number;
+  lng: number;
+  /** @nullable */
+  direction?: string | null;
+  alertEnabled?: boolean;
+}
+
+export type SpeedBumpUpdateStatus = typeof SpeedBumpUpdateStatus[keyof typeof SpeedBumpUpdateStatus];
+
+
+export const SpeedBumpUpdateStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
+
+export interface SpeedBumpUpdate {
+  /** @minLength 1 */
+  name?: string;
+  /** @nullable */
+  road?: string | null;
+  /** @nullable */
+  description?: string | null;
+  featureType?: string;
+  lat?: number;
+  lng?: number;
+  /** @nullable */
+  direction?: string | null;
+  alertEnabled?: boolean;
+  verified?: boolean;
+  status?: SpeedBumpUpdateStatus;
+}
+
 export interface SuccessResult {
   success: boolean;
 }
@@ -805,6 +884,23 @@ mode?: string;
 status?: string;
 search?: string;
 };
+
+export type AdminListSpeedBumpsParams = {
+page?: number;
+limit?: number;
+status?: AdminListSpeedBumpsStatus;
+featureType?: string;
+verified?: boolean;
+search?: string;
+};
+
+export type AdminListSpeedBumpsStatus = typeof AdminListSpeedBumpsStatus[keyof typeof AdminListSpeedBumpsStatus];
+
+
+export const AdminListSpeedBumpsStatus = {
+  active: 'active',
+  inactive: 'inactive',
+} as const;
 
 export type GetAppVersionParams = {
 platform?: string;

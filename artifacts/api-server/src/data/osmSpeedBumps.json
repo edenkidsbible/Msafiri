@@ -1,0 +1,7485 @@
+[
+  {
+    "osmType": "node",
+    "osmId": "161750013",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2656174,
+    "lng": 36.0237337,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "294006836",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.568565,
+    "lng": 35.2339132,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "294659782",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.0984573,
+    "lng": 37.6708157,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "294825376",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.5348902,
+    "lng": 36.5713132,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "294825388",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.5356197,
+    "lng": 36.5671182,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "394059897",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -3.2258847,
+    "lng": 40.1245294,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "474541859",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3478436,
+    "lng": 36.8117354,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "ele": "1674.4892578",
+      "traffic_calming": "bump",
+      "wpt_description": "speed bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "474541863",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3483242,
+    "lng": 36.8091605,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "ele": "1674.4892578",
+      "traffic_calming": "bump",
+      "wpt_description": "speed bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "474541865",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3493967,
+    "lng": 36.8067486,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "ele": "1674.4892578",
+      "traffic_calming": "bump",
+      "wpt_description": "speed bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "474541866",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3500403,
+    "lng": 36.8044226,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "ele": "1674.4892578",
+      "traffic_calming": "bump",
+      "wpt_description": "speed bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "474541871",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3509499,
+    "lng": 36.8015988,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "ele": "1674.4892578",
+      "traffic_calming": "bump",
+      "wpt_description": "speed bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "474591098",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3501518,
+    "lng": 36.8173659,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "ele": "1674.4892578",
+      "traffic_calming": "bump",
+      "wpt_description": "speed bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "474591100",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3481354,
+    "lng": 36.8152716,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "ele": "1674.4892578",
+      "traffic_calming": "bump",
+      "wpt_description": "speed bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "474591105",
+    "featureType": "bump",
+    "name": "Marker 1A",
+    "road": null,
+    "lat": -1.3473717,
+    "lng": 36.7981312,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "ele": "1674.4892578",
+      "information": "guidepost",
+      "name": "Marker 1A",
+      "ref": "1a",
+      "tourism": "information",
+      "traffic_calming": "bump",
+      "wpt_description": "speed bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "515741287",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3533424,
+    "lng": 36.9905601,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "974654825",
+    "featureType": "yes",
+    "name": "Traffic Calming",
+    "road": null,
+    "lat": -0.3345601,
+    "lng": 35.9440678,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "yes"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1014590781",
+    "featureType": "yes",
+    "name": "Traffic Calming",
+    "road": null,
+    "lat": -0.3354258,
+    "lng": 35.9443742,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "yes"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1015168587",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2993158,
+    "lng": 36.0529554,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1101823814",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.5772897,
+    "lng": 36.3656874,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1102137390",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -0.2834487,
+    "lng": 36.0894508,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing:markings": "zebra",
+      "crossing_ref": "zebra",
+      "highway": "crossing",
+      "kerb": "no",
+      "old_ref": "A104",
+      "supervised": "no",
+      "tactile_paving": "no",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1102538850",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3715638,
+    "lng": 35.9436312,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "project:eurosha_2012": "yes",
+      "source": "Bing",
+      "source:date": "3-3-2004",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1102538863",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3709791,
+    "lng": 35.9433737,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "project:eurosha_2012": "yes",
+      "source": "Bing",
+      "source:date": "3-3-2004",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1278172853",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.5567911,
+    "lng": 36.5316325,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1329651980",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -3.2275861,
+    "lng": 40.12455,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1329652060",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -3.2220873,
+    "lng": 40.1231476,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1329652064",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -3.2268691,
+    "lng": 40.1245487,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1351880238",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2715703,
+    "lng": 36.0645791,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1423753490",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.0961861,
+    "lng": 37.0143328,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1423795138",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": -1.0990918,
+    "lng": 37.0147063,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1423795141",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.0961867,
+    "lng": 37.0126684,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1423795143",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.0961865,
+    "lng": 37.0137803,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1423795146",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.0968569,
+    "lng": 37.014726,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1423795148",
+    "featureType": "island",
+    "name": "Traffic Island",
+    "road": null,
+    "lat": -1.1006886,
+    "lng": 37.014369,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "island"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1423795150",
+    "featureType": "choker",
+    "name": "Road Choker",
+    "road": null,
+    "lat": -1.0999425,
+    "lng": 37.0147197,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "choker"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1423795157",
+    "featureType": "choker",
+    "name": "Road Choker",
+    "road": null,
+    "lat": -1.0978917,
+    "lng": 37.0147257,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "choker"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "1811675172",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 0.2974859,
+    "lng": 34.76672,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2034642197",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2737087,
+    "lng": 36.0923802,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2094599059",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.5787036,
+    "lng": 36.3668087,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2123885998",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.950247,
+    "lng": 34.2597418,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2234122965",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3371283,
+    "lng": 36.9288252,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2271341895",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.265935,
+    "lng": 33.99254,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2282424584",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.463298,
+    "lng": 34.0823832,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2473253626",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 1.5853547,
+    "lng": 37.798183,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2541863465",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2338141,
+    "lng": 36.8063502,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2541863483",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2335566,
+    "lng": 36.8072412,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2541863898",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2326547,
+    "lng": 36.8077159,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2541863985",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2329486,
+    "lng": 36.8098229,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2545636511",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 0.5077748,
+    "lng": 35.2358463,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "2573207190",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": -0.7727612,
+    "lng": 36.5076488,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4220017353",
+    "featureType": "island",
+    "name": "Traffic Island",
+    "road": null,
+    "lat": -4.7609903,
+    "lng": 38.2996019,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "island"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4373450701",
+    "featureType": "yes",
+    "name": "Traffic Calming",
+    "road": null,
+    "lat": -1.3333917,
+    "lng": 34.6843936,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "yes"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454917939",
+    "featureType": "bump",
+    "name": "Club Nixx katambe",
+    "road": "Nyeri-Nanyuki Road",
+    "lat": 0.0063554,
+    "lng": 37.0732202,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "addr:city": "Nanyuki",
+      "addr:street": "Nyeri-Nanyuki Road",
+      "club": "yes",
+      "name": "Club Nixx katambe",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454917951",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.512556,
+    "lng": 35.9751069,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454917962",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.5977396,
+    "lng": 36.0047016,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454917963",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.8606618,
+    "lng": 35.8908358,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454917971",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.8651355,
+    "lng": 35.8899971,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454917974",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.0729748,
+    "lng": 35.8642833,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454917975",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.0792631,
+    "lng": 35.8675061,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454920547",
+    "featureType": "bump",
+    "name": "Kirimara Springs Hotel",
+    "road": "Nyeri-Nanyuki Road",
+    "lat": 0.0093726,
+    "lng": 37.0740716,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "addr:city": "Nanyuki",
+      "addr:street": "Nyeri-Nanyuki Road",
+      "name": "Kirimara Springs Hotel",
+      "tourism": "hotel",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454920628",
+    "featureType": "bump",
+    "name": "Co-op Bank ATM - Narumoru Branch",
+    "road": "Nyeri-Nanyuki Road",
+    "lat": -0.1679524,
+    "lng": 37.0232115,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "addr:city": "Naro Moru",
+      "addr:street": "Nyeri-Nanyuki Road",
+      "amenity": "bank",
+      "name": "Co-op Bank ATM - Narumoru Branch",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454920796",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2994806,
+    "lng": 36.0784261,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454921032",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3747457,
+    "lng": 35.9451134,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454921243",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3731939,
+    "lng": 35.944327,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454921730",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3858182,
+    "lng": 35.9521152,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454921731",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.5103995,
+    "lng": 35.9754998,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454921734",
+    "featureType": "chicane",
+    "name": "Chicane",
+    "road": null,
+    "lat": -0.5985657,
+    "lng": 36.0079452,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "chicane"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454921735",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.8619539,
+    "lng": 35.8908418,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454921736",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.8642843,
+    "lng": 35.8903077,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454921737",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.876296,
+    "lng": 35.8880712,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454921739",
+    "featureType": "bump",
+    "name": "Rash Energy Company Limited",
+    "road": "C57",
+    "lat": -1.0867267,
+    "lng": 35.8692513,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "addr:city": "Narok",
+      "addr:street": "C57",
+      "amenity": "fuel",
+      "name": "Rash Energy Company Limited",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4454921741",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.1519035,
+    "lng": 35.7540074,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4459193490",
+    "featureType": "bump",
+    "name": "National Oil Petrol Station",
+    "road": "Kaplong-Narok-Maai Road",
+    "lat": -1.0947713,
+    "lng": 36.0903051,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "addr:city": "Ntulelei",
+      "addr:street": "Kaplong-Narok-Maai Road",
+      "amenity": "fuel",
+      "name": "National Oil Petrol Station",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4460201787",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3020942,
+    "lng": 36.6886426,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4460202363",
+    "featureType": "bump",
+    "name": "Karen Crescent Hotel",
+    "road": "Langata Road",
+    "lat": -1.3382515,
+    "lng": 36.7427108,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "addr:city": "Nairobi",
+      "addr:housenumber": "KUFUKA ROAD KAREN P.O.BOX 53928-00200, Nairobi",
+      "addr:street": "Langata Road",
+      "name": "Karen Crescent Hotel",
+      "tourism": "hotel",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4460202666",
+    "featureType": "chicane",
+    "name": "Chicane",
+    "road": null,
+    "lat": -0.7702752,
+    "lng": 36.4309644,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "chicane"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "4460202668",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.9785001,
+    "lng": 36.5811548,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "5031956422",
+    "featureType": "island",
+    "name": "Traffic Island",
+    "road": null,
+    "lat": -4.216802,
+    "lng": 35.1350035,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "source": "DigitalGlobe",
+      "traffic_calming": "island"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6029563114",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2650386,
+    "lng": 36.8794929,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6030196731",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2649852,
+    "lng": 36.8797208,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6030218555",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2653944,
+    "lng": 36.8794857,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6030218574",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2548777,
+    "lng": 36.878666,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6112808376",
+    "featureType": "choker",
+    "name": "Road Choker",
+    "road": null,
+    "lat": -0.3638582,
+    "lng": 37.4632943,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "choker"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6112808381",
+    "featureType": "choker",
+    "name": "Road Choker",
+    "road": null,
+    "lat": -0.3620583,
+    "lng": 37.4642505,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "choker"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717127",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2653191,
+    "lng": 36.8797892,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717128",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2653442,
+    "lng": 36.8797213,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717129",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2653723,
+    "lng": 36.8795687,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717134",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2650589,
+    "lng": 36.879413,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717135",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2650107,
+    "lng": 36.8796457,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717147",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2548768,
+    "lng": 36.8787646,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717148",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2548814,
+    "lng": 36.8789065,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717149",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2548857,
+    "lng": 36.8790255,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717150",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2551165,
+    "lng": 36.8789174,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717151",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2551252,
+    "lng": 36.8787718,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717152",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.255129,
+    "lng": 36.8786725,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6165717156",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2551147,
+    "lng": 36.8790189,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6287459058",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3537908,
+    "lng": 36.7475134,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6288142926",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.286966,
+    "lng": 36.0932291,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6293973650",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2568962,
+    "lng": 36.0271502,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6301473172",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3082433,
+    "lng": 36.0716128,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "2009757782794572",
+      "mapillary:map_feature": "1271491083856405",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6305939034",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": -0.7984061,
+    "lng": 36.5264457,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6310870967",
+    "featureType": "no",
+    "name": "No Traffic Calming",
+    "road": null,
+    "lat": -1.3608732,
+    "lng": 36.7225823,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "uncontrolled",
+      "crossing:island": "no",
+      "crossing:markings": "zebra",
+      "highway": "crossing",
+      "surface": "asphalt",
+      "tactile_paving": "no",
+      "traffic_calming": "no"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6315505115",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 0.5074096,
+    "lng": 35.2368437,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6318605818",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2743487,
+    "lng": 36.0637674,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "paving_stones",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6335050716",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.9494518,
+    "lng": 34.2545986,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6337290295",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3546522,
+    "lng": 36.7465961,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6338994375",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.2753243,
+    "lng": 34.7561235,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6359550702",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4630526,
+    "lng": 34.0839754,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6359550914",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4667254,
+    "lng": 34.0841405,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6359594845",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.463057,
+    "lng": 34.0822072,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6369019737",
+    "featureType": "yes",
+    "name": "Traffic Calming",
+    "road": null,
+    "lat": -0.8882006,
+    "lng": 34.8808283,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "yes"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6383239429",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.9498528,
+    "lng": 34.2572393,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6496759984",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.947828,
+    "lng": 34.2772981,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6600823056",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5212611,
+    "lng": 35.2546605,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6622186087",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": -0.7718547,
+    "lng": 36.5061575,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6626864357",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": -0.840141,
+    "lng": 36.5511368,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6627239427",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.5772539,
+    "lng": 36.365773,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "6627239441",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.578666,
+    "lng": 36.3668637,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7004163546",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 1.1279463,
+    "lng": 37.599397,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7004163547",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 1.1259878,
+    "lng": 37.5991535,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7004163634",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 1.1222144,
+    "lng": 37.5977117,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7004163635",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 1.1241125,
+    "lng": 37.5985342,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7004163636",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 1.1232864,
+    "lng": 37.5981789,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7004163643",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 1.1289965,
+    "lng": 37.5993048,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7004163644",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 1.1295707,
+    "lng": 37.599175,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7006869628",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 1.4157847,
+    "lng": 37.7232312,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7015337038",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 1.5817545,
+    "lng": 37.7940623,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7015337048",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 1.5827005,
+    "lng": 37.7949194,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7015337049",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 1.5833668,
+    "lng": 37.7955425,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7015337050",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 1.5836832,
+    "lng": 37.7958633,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7015337053",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 1.5843327,
+    "lng": 37.7966451,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7015337054",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 1.5848228,
+    "lng": 37.7973497,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "7015337077",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 1.5893133,
+    "lng": 37.8021771,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "8296765211",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -3.3619801,
+    "lng": 36.6126681,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "surface": "concrete",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "8847388839",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.5631006,
+    "lng": 34.0297061,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "8864666097",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4621506,
+    "lng": 34.0805436,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "8864666360",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4621415,
+    "lng": 34.0821234,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "8864666361",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4624832,
+    "lng": 34.0821542,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "8864666363",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4635265,
+    "lng": 34.0828182,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "8864666364",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4631837,
+    "lng": 34.0836588,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "8864666365",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4633989,
+    "lng": 34.0832077,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "8864666367",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4632828,
+    "lng": 34.0845415,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9060306356",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -3.3621318,
+    "lng": 36.612584,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9060306430",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -3.3620671,
+    "lng": 36.6128316,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9060306510",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -3.3617693,
+    "lng": 36.6122891,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9072471260",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4662111,
+    "lng": 34.0837328,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9072471262",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4657008,
+    "lng": 34.0832886,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9072471263",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4648796,
+    "lng": 34.0825414,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9072471264",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.4652999,
+    "lng": 34.082927,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9132212511",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3004345,
+    "lng": 36.7740797,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "marked",
+      "crossing:island": "yes",
+      "highway": "crossing",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9138665769",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.2663986,
+    "lng": 33.9926857,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9138665770",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.2648837,
+    "lng": 33.992025,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9138665771",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.2655648,
+    "lng": 33.9924214,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9174658193",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.3235308,
+    "lng": 33.9932073,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9174658194",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.3236151,
+    "lng": 33.9929032,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9179174931",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 0.5255996,
+    "lng": 33.9692523,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "source": "Mapillary",
+      "source:date": "2016",
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9179174934",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 0.5255051,
+    "lng": 33.9689869,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "source": "Mapillary",
+      "source:date": "2016",
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9179175019",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 0.5240373,
+    "lng": 33.9647943,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "source": "Mapillary",
+      "source:date": "2016",
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9293924737",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2611007,
+    "lng": 36.3954341,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9293925076",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2579402,
+    "lng": 36.3990118,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842785",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3444697,
+    "lng": 36.7288996,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842786",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3427285,
+    "lng": 36.728206,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842787",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3426203,
+    "lng": 36.7282116,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842788",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3409576,
+    "lng": 36.7283019,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842789",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3406928,
+    "lng": 36.7289952,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842790",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3396757,
+    "lng": 36.7315144,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842792",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3479217,
+    "lng": 36.7361829,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842794",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3466979,
+    "lng": 36.7365179,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842795",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.347268,
+    "lng": 36.7369832,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842796",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3473405,
+    "lng": 36.7408882,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842797",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3473643,
+    "lng": 36.7421789,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842798",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3473909,
+    "lng": 36.7442787,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842799",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3476422,
+    "lng": 36.7444466,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842800",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3472851,
+    "lng": 36.7445384,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842802",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3509232,
+    "lng": 36.7366588,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842803",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3549478,
+    "lng": 36.7359073,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848842804",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3503385,
+    "lng": 36.7357349,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848941459",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3538831,
+    "lng": 36.7469881,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "9848941460",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3532587,
+    "lng": 36.7474581,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "10011923823",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -0.3938595,
+    "lng": 36.9541915,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "unmarked",
+      "crossing:markings": "no",
+      "highway": "crossing",
+      "tactile_paving": "yes",
+      "traffic_calming": "table",
+      "turning_circle": "hammer"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "10654961960",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.2673546,
+    "lng": 36.7209406,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "10654961961",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.2678336,
+    "lng": 36.7212271,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "10654961967",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.2684449,
+    "lng": 36.7210794,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "10866879155",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": -1.3000943,
+    "lng": 36.7671054,
+    "direction": "backward",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "backward",
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "10866879706",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": -1.2997027,
+    "lng": 36.765756,
+    "direction": "backward",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "backward",
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "10951243516",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.2988961,
+    "lng": 36.7973335,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "10973018948",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.1599884,
+    "lng": 36.6396624,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "old_ref": "A104",
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "10973018950",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.1599649,
+    "lng": 36.639745,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "11834816082",
+    "featureType": "yes",
+    "name": "Traffic Calming",
+    "road": null,
+    "lat": -1.87569,
+    "lng": 36.8625936,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "yes"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12137767582",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.0270251,
+    "lng": 36.9147599,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12137767583",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.0267728,
+    "lng": 36.9145508,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12150036315",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.4269431,
+    "lng": 36.0525293,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12150036330",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.4267225,
+    "lng": 36.0525677,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12151294953",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.426428,
+    "lng": 36.0526333,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12153289965",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.73346,
+    "lng": 36.4523955,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12163175311",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3545782,
+    "lng": 36.7198657,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12163175312",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3514394,
+    "lng": 36.7198962,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12163207267",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3650103,
+    "lng": 36.7404327,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12198828344",
+    "featureType": "yes",
+    "name": "Traffic Calming",
+    "road": null,
+    "lat": 0.3929307,
+    "lng": 34.6807065,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "yes"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12687095440",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2713613,
+    "lng": 36.0553101,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12687143620",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2720755,
+    "lng": 36.0526455,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12687151791",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2699828,
+    "lng": 36.0569934,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12690329076",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2739538,
+    "lng": 36.0593351,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12690329077",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2736606,
+    "lng": 36.0600302,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12690338386",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.27374,
+    "lng": 36.0602717,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12696086689",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.4140191,
+    "lng": 36.1558112,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12697209974",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2884735,
+    "lng": 36.156415,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12701995688",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.32224,
+    "lng": 36.1496083,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12708194539",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2598826,
+    "lng": 36.0192467,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing:markings": "zebra",
+      "direction": "both",
+      "hazard": "bump",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12715342315",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.3156358,
+    "lng": 36.0683727,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "highway": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12716564337",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2605887,
+    "lng": 36.0322163,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12718141414",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2687873,
+    "lng": 36.0334068,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12718168044",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2684842,
+    "lng": 36.0326312,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12718168095",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2657866,
+    "lng": 36.0321948,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12718272313",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2654531,
+    "lng": 36.0329049,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "concrete",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12718706986",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2675033,
+    "lng": 36.0332154,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12719863880",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2708888,
+    "lng": 36.0848974,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "marked",
+      "direction": "both",
+      "mapillary:image": "3659296551001490",
+      "mapillary:map_feature": "813795374135792",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12722505601",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2625545,
+    "lng": 36.0280208,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12722797854",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2597026,
+    "lng": 36.0216675,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12722797861",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2595825,
+    "lng": 36.0215086,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12722797862",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2595447,
+    "lng": 36.0217926,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12722819480",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2594242,
+    "lng": 36.0216366,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12723452204",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2617345,
+    "lng": 36.0195346,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12723498530",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2636667,
+    "lng": 36.0221891,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12723568578",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2600562,
+    "lng": 36.0193525,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12723639463",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2650393,
+    "lng": 36.0226532,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12723648350",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2636645,
+    "lng": 36.0206311,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12725428660",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.3156428,
+    "lng": 36.0683598,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12730569635",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3082106,
+    "lng": 36.0750498,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12730990348",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3021503,
+    "lng": 36.0847432,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12741509720",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2963895,
+    "lng": 36.0654062,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "highway": "crossing",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12745348609",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2879085,
+    "lng": 36.0839965,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12747349188",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2912149,
+    "lng": 36.0751916,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12748283533",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3017237,
+    "lng": 36.1326293,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "mapillary:image": "1273724890653946",
+      "mapillary:map_feature": "787937689933648",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12748350510",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2990634,
+    "lng": 36.1329574,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "mapillary:image": "479209945029779",
+      "mapillary:map_feature": "539294955227733",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12748992175",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2980082,
+    "lng": 36.1323394,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12750337280",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2792032,
+    "lng": 36.0294591,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "yes",
+      "traffic_sign:2": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12754838949",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2836544,
+    "lng": 36.0512873,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12754854957",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2823868,
+    "lng": 36.0480076,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12755167195",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2824243,
+    "lng": 36.047479,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12755167196",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2823431,
+    "lng": 36.0472474,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12756747047",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2711353,
+    "lng": 36.0770034,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12756747048",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2709443,
+    "lng": 36.0774058,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12756794956",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2727221,
+    "lng": 36.0840064,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12757008522",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2757857,
+    "lng": 36.0850064,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12757008523",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2758184,
+    "lng": 36.0849599,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12757008524",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2759084,
+    "lng": 36.0847469,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12757288749",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3039484,
+    "lng": 36.13217,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12757390091",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2948597,
+    "lng": 36.1201017,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing:markings": "yes",
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12757390647",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3032085,
+    "lng": 36.1323296,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing:markings": "lines",
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12758050075",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3129997,
+    "lng": 36.1407654,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "861428136080489",
+      "mapillary:map_feature": "8369224593098368",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12758050080",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.312617,
+    "lng": 36.1409451,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "1957929088021690",
+      "mapillary:map_feature": "837143985238188",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12758063180",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2714546,
+    "lng": 36.1030678,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12758063193",
+    "featureType": "mini_bumps",
+    "name": "Mini Bumps",
+    "road": null,
+    "lat": -0.270502,
+    "lng": 36.1036232,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "mini_bumps"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12758172151",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2845115,
+    "lng": 36.101951,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759463416",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2706614,
+    "lng": 36.0850789,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759463447",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2711026,
+    "lng": 36.0847295,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759547324",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": -0.2993915,
+    "lng": 36.1415032,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759590704",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2721486,
+    "lng": 36.0639175,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "paved",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759590726",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2729567,
+    "lng": 36.0638183,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing:markings": "zebra",
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759590733",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2730608,
+    "lng": 36.0639651,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing:markings": "lines:paired",
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759591279",
+    "featureType": "yes",
+    "name": "Traffic Calming",
+    "road": null,
+    "lat": -0.273148,
+    "lng": 36.0637994,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing:markings": "zebra",
+      "direction": "both",
+      "traffic_calming": "yes"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759591280",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2734119,
+    "lng": 36.0637738,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "paved",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759591283",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2739081,
+    "lng": 36.0637313,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759626266",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.27355,
+    "lng": 36.0896091,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12759652389",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2990237,
+    "lng": 36.138368,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:map_feature": "518047540928159",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12760073167",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2954715,
+    "lng": 36.1387844,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12760073168",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2963226,
+    "lng": 36.1384105,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12760356593",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -0.2729825,
+    "lng": 36.101601,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12761719047",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2762631,
+    "lng": 36.0572999,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12761719054",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.27573,
+    "lng": 36.0573582,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762126828",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2725522,
+    "lng": 36.0984022,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762181948",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2728729,
+    "lng": 36.0990672,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762181956",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2733172,
+    "lng": 36.0996947,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762496067",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -0.2929228,
+    "lng": 36.0916114,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "marked",
+      "highway": "crossing",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762496069",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -0.2924476,
+    "lng": 36.0915543,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "marked",
+      "crossing:markings": "yes",
+      "highway": "crossing",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762496070",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -0.2919572,
+    "lng": 36.0915685,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "marked",
+      "highway": "crossing",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762496071",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -0.2915281,
+    "lng": 36.0915416,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "marked",
+      "highway": "crossing",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762534549",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2961528,
+    "lng": 36.1282545,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "1510605356509190",
+      "mapillary:map_feature": "1515090206068735",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762836253",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2933301,
+    "lng": 36.1207265,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "1022743576136522",
+      "mapillary:map_feature": "1066090558284751",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762836254",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.29311,
+    "lng": 36.120832,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762836271",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2936006,
+    "lng": 36.1206169,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "364488673370294",
+      "mapillary:map_feature": "1396850947653367",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762836291",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2941643,
+    "lng": 36.1203912,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12762836298",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2948365,
+    "lng": 36.1196524,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "1029273218853928",
+      "mapillary:map_feature": "794365755921798",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12765879733",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2936155,
+    "lng": 36.1168526,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12766018790",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2923869,
+    "lng": 36.0708824,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12766054995",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2922427,
+    "lng": 36.0714478,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12766055240",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2916652,
+    "lng": 36.0721859,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12766247258",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2937762,
+    "lng": 36.0726874,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12766268572",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2940881,
+    "lng": 36.0639297,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12766285324",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2944404,
+    "lng": 36.0626607,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12766285366",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2938241,
+    "lng": 36.0650535,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12769068104",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2876056,
+    "lng": 36.1039778,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "highway": "crossing",
+      "mapillary:image": "854643056594714",
+      "mapillary:map_feature": "821003530145480",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12769727989",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2844329,
+    "lng": 36.0716068,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12769763346",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2697045,
+    "lng": 36.0351748,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12769786332",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2698285,
+    "lng": 36.0356273,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12770809555",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2711352,
+    "lng": 36.0553162,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12770809560",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2705589,
+    "lng": 36.0552923,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771191875",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.287276,
+    "lng": 36.1041087,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "362620046892389",
+      "mapillary:map_feature": "821003516812148",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771225758",
+    "featureType": "yes",
+    "name": "Traffic Calming",
+    "road": null,
+    "lat": -0.2767549,
+    "lng": 36.0555696,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing:markings": "zebra",
+      "traffic_calming": "yes"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771225760",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2756132,
+    "lng": 36.0555167,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing:markings": "zebra",
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771294901",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.273912,
+    "lng": 36.0591921,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771593311",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2737139,
+    "lng": 36.060142,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771600698",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2833177,
+    "lng": 36.089427,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771645518",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2812726,
+    "lng": 36.0886588,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771649405",
+    "featureType": "mini_bumps",
+    "name": "Mini Bumps",
+    "road": null,
+    "lat": -0.2835087,
+    "lng": 36.0883964,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "mini_bumps"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771649406",
+    "featureType": "mini_bumps",
+    "name": "Mini Bumps",
+    "road": null,
+    "lat": -0.28361,
+    "lng": 36.0878557,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "mini_bumps"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771649407",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2835888,
+    "lng": 36.0876149,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771834788",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2840446,
+    "lng": 36.0534839,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771834789",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2839965,
+    "lng": 36.0533741,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12771847431",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.286082,
+    "lng": 36.0529956,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12774362735",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2874598,
+    "lng": 36.0467082,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12774369387",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": -0.2891085,
+    "lng": 36.0427212,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12776478169",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2974767,
+    "lng": 36.0522242,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12776512645",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2966463,
+    "lng": 36.0566052,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12777079936",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2965028,
+    "lng": 36.0619655,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12777120694",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2965452,
+    "lng": 36.0591934,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12778297961",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2883261,
+    "lng": 36.076362,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "846072767149629",
+      "mapillary:map_feature": "879726193599546",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12778599759",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2943037,
+    "lng": 36.0553619,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12778879683",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2910374,
+    "lng": 36.0867565,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12781294747",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2869365,
+    "lng": 36.05285,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12782245847",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2861159,
+    "lng": 36.0906479,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "785795653468939",
+      "mapillary:map_feature": "3890537094535483",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12782245879",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2861632,
+    "lng": 36.0909773,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12782245888",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2857074,
+    "lng": 36.0908044,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12782389360",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2870877,
+    "lng": 36.0923075,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "322204787553494",
+      "mapillary:map_feature": "1034391031462481",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12782389367",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2872062,
+    "lng": 36.0914174,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12782414472",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3071416,
+    "lng": 36.0527214,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12782810609",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2981784,
+    "lng": 36.0654272,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12783056072",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2986103,
+    "lng": 36.0609645,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12783324551",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.29677,
+    "lng": 36.0618855,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12783324556",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2975759,
+    "lng": 36.0611868,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12783886102",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.301672,
+    "lng": 36.064387,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12783902945",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3013579,
+    "lng": 36.0645127,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12783982919",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2994769,
+    "lng": 36.0650889,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12783982921",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3000593,
+    "lng": 36.0648945,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12783982931",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.3001331,
+    "lng": 36.0648416,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784025175",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2988215,
+    "lng": 36.0648201,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784063575",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2981463,
+    "lng": 36.0630512,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784107555",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2973877,
+    "lng": 36.0740126,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784107560",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2987077,
+    "lng": 36.0745711,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784113704",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2991272,
+    "lng": 36.0747527,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784113705",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2987433,
+    "lng": 36.0749937,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784113708",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2989255,
+    "lng": 36.073729,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784136492",
+    "featureType": "yes",
+    "name": "Traffic Calming",
+    "road": null,
+    "lat": -0.2982145,
+    "lng": 36.0764008,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing:markings": "yes",
+      "traffic_calming": "yes"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784164077",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3079681,
+    "lng": 36.0700622,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "523807516960045",
+      "mapillary:map_feature": "513719341556356",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784164078",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3083888,
+    "lng": 36.0691368,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "2280118599013312",
+      "mapillary:map_feature": "513719344889689",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784164079",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.308598,
+    "lng": 36.0686888,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784164082",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3087588,
+    "lng": 36.0682611,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "1897921937343238",
+      "mapillary:map_feature": "1118287583204100",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784177190",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2974453,
+    "lng": 36.0521193,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784187137",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3003521,
+    "lng": 36.0752924,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784300284",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3003354,
+    "lng": 36.0527536,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784571751",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2990224,
+    "lng": 36.0707933,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784571772",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.298363,
+    "lng": 36.068726,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12784573978",
+    "featureType": "hazard_bump",
+    "name": "Road Bump",
+    "road": null,
+    "lat": -0.2988745,
+    "lng": 36.0708169,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "hazard": "bump",
+      "traffic_sign": "hazard"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12785143666",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2994939,
+    "lng": 36.073983,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12785197574",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -0.2988067,
+    "lng": 36.0669224,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "surface": "asphalt",
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12785203534",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3025035,
+    "lng": 36.0665064,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12785203536",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3028069,
+    "lng": 36.0658106,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12785650669",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3030104,
+    "lng": 36.065342,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12785741285",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3096912,
+    "lng": 36.071727,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "1163134298123011",
+      "mapillary:map_feature": "390107470775871",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12785741288",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3101947,
+    "lng": 36.0705433,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "824465109834484",
+      "mapillary:map_feature": "1060265769047492",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12785988648",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3042193,
+    "lng": 36.0730426,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "1032958751854411",
+      "mapillary:map_feature": "874044831277280",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12785988655",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.3030057,
+    "lng": 36.0725036,
+    "direction": "both",
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "direction": "both",
+      "mapillary:image": "929142479227960",
+      "mapillary:map_feature": "874044834610613",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "12886374883",
+    "featureType": "hump",
+    "name": "Desai Road",
+    "road": null,
+    "lat": -1.2759982,
+    "lng": 36.8294432,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "addr:county": "Nairobi",
+      "addr:location": "Starehe",
+      "name": "Desai Road",
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13246085268",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -0.4187605,
+    "lng": 37.5027448,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "unmarked",
+      "crossing:island": "yes",
+      "crossing:markings": "no",
+      "highway": "crossing",
+      "tactile_paving": "yes",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13699278464",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5250951,
+    "lng": 35.2517239,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13699278465",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5247504,
+    "lng": 35.2519651,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13699278466",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5256771,
+    "lng": 35.2513575,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13699278467",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5259739,
+    "lng": 35.2512028,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13699278469",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5244405,
+    "lng": 35.2522154,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13699278470",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5242563,
+    "lng": 35.2523537,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13699278471",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5292583,
+    "lng": 35.2498783,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13710829097",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5214371,
+    "lng": 35.2611341,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512727",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5206622,
+    "lng": 35.2580312,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "surface": "asphalt",
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512728",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5209705,
+    "lng": 35.2549872,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512729",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5305327,
+    "lng": 35.2493796,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512730",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5335756,
+    "lng": 35.2482068,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512731",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5360415,
+    "lng": 35.2472469,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512733",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5466351,
+    "lng": 35.2454811,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512734",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5484084,
+    "lng": 35.2452187,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512735",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5489261,
+    "lng": 35.245132,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512736",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.549858,
+    "lng": 35.2449144,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512739",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 0.5618334,
+    "lng": 35.239222,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512741",
+    "featureType": "rumble_strip",
+    "name": "Rumble Strip",
+    "road": null,
+    "lat": 0.5655587,
+    "lng": 35.2367398,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "rumble_strip"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512742",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.566897,
+    "lng": 35.2354852,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512743",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5755056,
+    "lng": 35.2270773,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512744",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": 0.5765786,
+    "lng": 35.2257501,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13720512749",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": 0.5050861,
+    "lng": 35.256527,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13761214278",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": 0.274793,
+    "lng": 34.7607072,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "uncontrolled",
+      "crossing:markings": "ladder",
+      "highway": "crossing",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13761214279",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": 0.2694551,
+    "lng": 34.7529303,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "uncontrolled",
+      "crossing:markings": "ladder",
+      "highway": "crossing",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13945551096",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.0983378,
+    "lng": 37.0136214,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13945551097",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.0982944,
+    "lng": 37.0144049,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13945577238",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.0972377,
+    "lng": 37.0133149,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "node",
+    "osmId": "13945577239",
+    "featureType": "hump",
+    "name": "Speed Hump",
+    "road": null,
+    "lat": -1.0977706,
+    "lng": 37.0133187,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "hump"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "173960946",
+    "featureType": "bump",
+    "name": "Miriam Road",
+    "road": null,
+    "lat": -1.4721313,
+    "lng": 36.9557542,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "highway": "residential",
+      "maxspeed": "50",
+      "name": "Miriam Road",
+      "oneway": "no",
+      "surface": "unpaved",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "556818115",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -1.3528059,
+    "lng": 36.7483715,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "732780829",
+    "featureType": "island",
+    "name": "Traffic Island",
+    "road": null,
+    "lat": -4.0232874,
+    "lng": 39.5836082,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "island"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "732780830",
+    "featureType": "island",
+    "name": "Traffic Island",
+    "road": null,
+    "lat": -4.0226117,
+    "lng": 39.5799303,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "traffic_calming": "island"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "895831228",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3075532,
+    "lng": 36.8898467,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "unmarked",
+      "footway": "crossing",
+      "highway": "footway",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "895831229",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3077607,
+    "lng": 36.8894669,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "bridge": "yes",
+      "crossing": "unmarked",
+      "footway": "crossing",
+      "highway": "footway",
+      "layer": "1",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "895831230",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3077888,
+    "lng": 36.8894154,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "unmarked",
+      "footway": "crossing",
+      "highway": "footway",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "895831231",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3077039,
+    "lng": 36.8895709,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "bridge": "yes",
+      "crossing": "unmarked",
+      "footway": "crossing",
+      "highway": "footway",
+      "layer": "1",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "895831232",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3077269,
+    "lng": 36.8895288,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "unmarked",
+      "footway": "crossing",
+      "highway": "footway",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "895831233",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3076491,
+    "lng": 36.8896711,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "unmarked",
+      "footway": "crossing",
+      "highway": "footway",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "895831234",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3075922,
+    "lng": 36.8897752,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "bridge": "yes",
+      "crossing": "unmarked",
+      "footway": "crossing",
+      "highway": "footway",
+      "layer": "1",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "895831235",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3074789,
+    "lng": 36.8899828,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "bridge": "yes",
+      "crossing": "unmarked",
+      "footway": "crossing",
+      "highway": "footway",
+      "layer": "1",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "895831236",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3075142,
+    "lng": 36.8899181,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "bridge": "yes",
+      "crossing": "unmarked",
+      "footway": "crossing",
+      "highway": "footway",
+      "layer": "1",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "895831237",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.3074587,
+    "lng": 36.8900198,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "unmarked",
+      "footway": "crossing",
+      "highway": "footway",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "1060587107",
+    "featureType": "island",
+    "name": "Traffic Island",
+    "road": null,
+    "lat": -1.2649949,
+    "lng": 36.7212299,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "area": "yes",
+      "surface": "grass",
+      "traffic_calming": "island"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "1314128139",
+    "featureType": "island",
+    "name": "Traffic Island",
+    "road": null,
+    "lat": -1.3609144,
+    "lng": 36.7300778,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": false,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "barrier": "kerb",
+      "kerb": "raised",
+      "landuse": "grass",
+      "traffic_calming": "island"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "1372752556",
+    "featureType": "bump",
+    "name": "Speed Bump",
+    "road": null,
+    "lat": -0.2963151,
+    "lng": 36.0626196,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "marked",
+      "highway": "crossing",
+      "traffic_calming": "bump"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "1373614937",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -0.2608877,
+    "lng": 36.0322124,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "zebra",
+      "crossing:markings": "yes",
+      "footway": "crossing",
+      "highway": "footway",
+      "surface": "asphalt",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "1373623622",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -0.2641078,
+    "lng": 36.032707,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "zebra",
+      "crossing:markings": "ladder:skewed",
+      "footway": "crossing",
+      "highway": "footway",
+      "surface": "asphalt",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "1373635681",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -0.2689763,
+    "lng": 36.0334431,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "uncontrolled",
+      "crossing:markings": "ladder:skewed",
+      "footway": "crossing",
+      "highway": "footway",
+      "surface": "asphalt",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "1394109411",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.2252894,
+    "lng": 36.7059167,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "marked",
+      "crossing:island": "no",
+      "crossing:markings": "ladder",
+      "footway": "crossing",
+      "highway": "footway",
+      "surface": "asphalt",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "1394109413",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -1.224169,
+    "lng": 36.7051675,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "uncontrolled",
+      "crossing:island": "yes",
+      "crossing:markings": "ladder",
+      "footway": "crossing",
+      "highway": "footway",
+      "surface": "asphalt",
+      "traffic_calming": "table"
+    }
+  },
+  {
+    "osmType": "way",
+    "osmId": "1479274737",
+    "featureType": "table",
+    "name": "Raised Table",
+    "road": null,
+    "lat": -3.3661731,
+    "lng": 36.7089518,
+    "direction": null,
+    "status": "active",
+    "verified": false,
+    "alertEnabled": true,
+    "source": "openstreetmap",
+    "sourceTags": {
+      "crossing": "uncontrolled",
+      "crossing:island": "yes",
+      "crossing:markings": "zebra",
+      "footway": "crossing",
+      "highway": "footway",
+      "traffic_calming": "table"
+    }
+  }
+]

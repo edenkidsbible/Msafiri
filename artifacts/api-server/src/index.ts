@@ -12,6 +12,7 @@ import { backfillR2Media } from "./startup/backfillR2Media";
 import { dedupPushTokens } from "./startup/dedupPushTokens";
 import { migrateSchema } from "./startup/migrateSchema";
 import { syncStaticZones } from "./startup/syncStaticZones";
+import { seedSpeedBumps } from "./startup/seedSpeedBumps";
 import { seedPois } from "./startup/seedPois";
 import { seedOpsData } from "./startup/seedOpsData";
 import { retryPendingCarImages, retryPendingLogos } from "./routes/customVehicles.js";
@@ -119,6 +120,7 @@ const server = app.listen(port, async (err) => {
     await seedDefaultAdmin();
     await seedOpsTeamMembers();
     await syncStaticZones();
+    await seedSpeedBumps();
     await seedCourseIfEmpty();
     await backfillCourseAudio();
     await dedupPushTokens();

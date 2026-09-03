@@ -64,6 +64,8 @@ export const BG_DRIVE_ACTIVE_KEY    = "@msafiri/bgDriveActive";
 export const BG_SESSION_ID_KEY      = "@msafiri/bgSessionId";
 export const BG_ZONES_CACHE_KEY     = "@msafiri/bgZonesCache";
 export const BG_REPORTS_CACHE_KEY   = "@msafiri/bgReportsCache";
+/** Advisory bump feed. Kept separate from zones so it can never infer a limit. */
+export const BG_SPEED_BUMPS_CACHE_KEY = "@msafiri/bgSpeedBumpsCache";
 export const BG_LAST_FIX_KEY        = "@msafiri/bgLastFix";   // ← foreground recovery
 export const BG_ALERT_OWNER_KEY     = "@msafiri/bgAlertOwner";
 export const BG_ROAD_CONTEXT_KEY    = "@msafiri/bgRoadContext";
@@ -116,6 +118,16 @@ export interface BgReportEntry {
   type: string;
   speedLimit?: number | null;
   road?: string | null;
+}
+
+/** Compact server-managed speed bump entry persisted by AppContext. */
+export interface BgSpeedBumpEntry {
+  id: string;
+  lat: number;
+  lng: number;
+  name: string;
+  road?: string | null;
+  direction?: string | null;
 }
 
 export interface BgRoadContext {
@@ -480,11 +492,12 @@ export function defineBackgroundDriveAlertsTask(): void {
         AsyncStorage.setItem(BG_LAST_FIX_KEY, JSON.stringify(lastFix)).catch(() => {});
 
         // ── 4. Load all data in parallel ───────────────────────────────────
-        const [sessionIdRaw, zonesRaw, reportsRaw, notifiedRaw, accuracyModeRaw, lastAlertAtRaw, roadContextRaw] =
+        const [sessionIdRaw, zonesRaw, reportsRaw, bumpsRaw, notifiedRaw, accuracyModeRaw, lastAlertAtRaw, roadContextRaw] =
           await Promise.all([
             AsyncStorage.getItem(BG_SESSION_ID_KEY),
             AsyncStorage.getItem(BG_ZONES_CACHE_KEY),
             AsyncStorage.getItem(BG_REPORTS_CACHE_KEY),
+            AsyncStorage.getItem(BG_SPEED_BUMPS_CACHE_KEY),
             AsyncStorage.getItem(BG_NOTIFIED_ALERTS_KEY),
             AsyncStorage.getItem(BG_ACCURACY_MODE_KEY),
             AsyncStorage.getItem(BG_LAST_ALERT_AT_KEY),
@@ -512,9 +525,11 @@ export function defineBackgroundDriveAlertsTask(): void {
 
         let zones: BgZoneEntry[] = [];
         let reports: BgReportEntry[] = [];
+        let bumps: BgSpeedBumpEntry[] = [];
         let roadContext: BgRoadContext | null = null;
         try { zones   = zonesRaw   ? (JSON.parse(zonesRaw)   as BgZoneEntry[])   : []; } catch {}
         try { reports = reportsRaw ? (JSON.parse(reportsRaw) as BgReportEntry[]) : []; } catch {}
+        try { bumps = bumpsRaw ? (JSON.parse(bumpsRaw) as BgSpeedBumpEntry[]) : []; } catch {}
         try { roadContext = roadContextRaw ? (JSON.parse(roadContextRaw) as BgRoadContext) : null; } catch {}
         let currentRoad =
           roadContext &&
@@ -542,7 +557,7 @@ export function defineBackgroundDriveAlertsTask(): void {
               ? roadContext.heading
               : null;
 
-        // ── 5. Evaluate all zones + reports, pick the closest alertable one ─
+        // ── 5. Evaluate zones, reports, and advisory bumps independently ────
         // Simultaneously track the nearest distance across ALL zones/reports
         // (regardless of the alert window) for the adaptive-accuracy gate.
         type Winner = {
@@ -589,6 +604,23 @@ export function defineBackgroundDriveAlertsTask(): void {
               road:       r.road,
               lat:        r.lat,
               lng:        r.lng,
+            };
+          }
+        }
+
+        // Bumps intentionally do not enter `zones`: they are hazards rather
+        // than speed limits, so the limit inference below must never see them.
+        for (const b of bumps) {
+          const d = haversine(lat, lng, b.lat, b.lng);
+          if (d < nearestDist) nearestDist = d;
+          if (d <= IN_ZONE_DIST || d > ALERT_DIST) continue;
+          if (b.road && !roadsMatch(currentRoad, b.road)) continue;
+          if (currentHeading != null && alongTrackDistanceM(lat, lng, currentHeading, b.lat, b.lng) <= 0) continue;
+          if (!followsCurrentTravelCorridor(lat, lng, currentHeading, b.lat, b.lng)) continue;
+          if (!winner || d < winner.dist) {
+            winner = {
+              id: b.id, type: "speed_bump", dist: d, name: b.name || "Speed bump",
+              road: b.road, lat: b.lat, lng: b.lng,
             };
           }
         }

@@ -1010,6 +1010,138 @@ export const AdminDeleteSpeedZoneResponse = zod.object({
 
 
 /**
+ * @summary List speed bumps and road calming features
+ */
+export const AdminListSpeedBumpsQueryParams = zod.object({
+  "page": zod.coerce.number().optional(),
+  "limit": zod.coerce.number().optional(),
+  "status": zod.enum(['active', 'inactive']).optional(),
+  "featureType": zod.coerce.string().optional(),
+  "verified": zod.coerce.boolean().optional(),
+  "search": zod.coerce.string().optional()
+})
+
+export const AdminListSpeedBumpsResponse = zod.object({
+  "bumps": zod.array(zod.object({
+  "id": zod.string(),
+  "osmType": zod.string(),
+  "osmId": zod.string(),
+  "featureType": zod.string(),
+  "name": zod.string(),
+  "road": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "direction": zod.string().nullish(),
+  "source": zod.string(),
+  "alertEnabled": zod.boolean(),
+  "verified": zod.boolean(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})),
+  "total": zod.number(),
+  "page": zod.number(),
+  "limit": zod.number()
+})
+
+
+/**
+ * @summary Create a speed bump or related road-calming feature
+ */
+
+
+
+export const AdminCreateSpeedBumpBody = zod.object({
+  "name": zod.string().min(1),
+  "road": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "featureType": zod.string(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "direction": zod.string().nullish(),
+  "alertEnabled": zod.boolean().optional()
+})
+
+export const AdminCreateSpeedBumpResponse = zod.object({
+  "id": zod.string(),
+  "osmType": zod.string(),
+  "osmId": zod.string(),
+  "featureType": zod.string(),
+  "name": zod.string(),
+  "road": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "direction": zod.string().nullish(),
+  "source": zod.string(),
+  "alertEnabled": zod.boolean(),
+  "verified": zod.boolean(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Update, relocate, verify, or enable alerts for a speed bump
+ */
+export const AdminUpdateSpeedBumpParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+
+
+
+export const AdminUpdateSpeedBumpBody = zod.object({
+  "name": zod.string().min(1).optional(),
+  "road": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "featureType": zod.string().optional(),
+  "lat": zod.number().optional(),
+  "lng": zod.number().optional(),
+  "direction": zod.string().nullish(),
+  "alertEnabled": zod.boolean().optional(),
+  "verified": zod.boolean().optional(),
+  "status": zod.enum(['active', 'inactive']).optional()
+})
+
+export const AdminUpdateSpeedBumpResponse = zod.object({
+  "id": zod.string(),
+  "osmType": zod.string(),
+  "osmId": zod.string(),
+  "featureType": zod.string(),
+  "name": zod.string(),
+  "road": zod.string().nullish(),
+  "description": zod.string().nullish(),
+  "lat": zod.number(),
+  "lng": zod.number(),
+  "direction": zod.string().nullish(),
+  "source": zod.string(),
+  "alertEnabled": zod.boolean(),
+  "verified": zod.boolean(),
+  "status": zod.enum(['active', 'inactive']),
+  "createdBy": zod.string().nullish(),
+  "createdAt": zod.string(),
+  "updatedAt": zod.string()
+})
+
+
+/**
+ * @summary Delete a speed bump
+ */
+export const AdminDeleteSpeedBumpParams = zod.object({
+  "id": zod.coerce.string()
+})
+
+export const AdminDeleteSpeedBumpResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Get current app version info and force-update status
  */
 export const GetAppVersionQueryParams = zod.object({

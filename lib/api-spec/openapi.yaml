@@ -32,6 +32,8 @@ tags:
     description: Public speed zone lookup
   - name: admin-speed-zones
     description: Admin speed zone management
+  - name: admin-speed-bumps
+    description: Admin speed bump management
   - name: blog
     description: Public blog posts
   - name: admin-blog
@@ -1062,6 +1064,69 @@ paths:
           description: Unauthorized
         "404":
           description: Not found
+
+  /admin/speed-bumps:
+    get:
+      operationId: adminListSpeedBumps
+      tags: [admin-speed-bumps]
+      summary: List speed bumps and road calming features
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { in: query, name: page, schema: { type: integer } }
+        - { in: query, name: limit, schema: { type: integer } }
+        - { in: query, name: status, schema: { type: string, enum: [active, inactive] } }
+        - { in: query, name: featureType, schema: { type: string } }
+        - { in: query, name: verified, schema: { type: boolean } }
+        - { in: query, name: search, schema: { type: string } }
+      responses:
+        "200":
+          description: Speed bump list
+          content: { application/json: { schema: { $ref: "#/components/schemas/AdminSpeedBumpList" } } }
+        "401": { description: Unauthorized }
+    post:
+      operationId: adminCreateSpeedBump
+      tags: [admin-speed-bumps]
+      summary: Create a speed bump or related road-calming feature
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SpeedBumpInput" } } }
+      responses:
+        "201":
+          description: Created
+          content: { application/json: { schema: { $ref: "#/components/schemas/AdminSpeedBump" } } }
+        "400": { description: Invalid input }
+        "401": { description: Unauthorized }
+
+  /admin/speed-bumps/{id}:
+    patch:
+      operationId: adminUpdateSpeedBump
+      tags: [admin-speed-bumps]
+      summary: Update, relocate, verify, or enable alerts for a speed bump
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/SpeedBumpUpdate" } } }
+      responses:
+        "200":
+          description: Updated
+          content: { application/json: { schema: { $ref: "#/components/schemas/AdminSpeedBump" } } }
+        "400": { description: Invalid input }
+        "401": { description: Unauthorized }
+        "404": { description: Not found }
+    delete:
+      operationId: adminDeleteSpeedBump
+      tags: [admin-speed-bumps]
+      summary: Delete a speed bump
+      security: [{ bearerAuth: [] }]
+      parameters: [{ in: path, name: id, required: true, schema: { type: string } }]
+      responses:
+        "200":
+          description: Deleted
+          content: { application/json: { schema: { $ref: "#/components/schemas/DeleteResult" } } }
+        "401": { description: Unauthorized }
+        "404": { description: Not found }
 
   /app/version:
     get:
@@ -2273,6 +2338,66 @@ components:
         endLng:      { type: ["number", "null"] }
         status:      { type: string }
         verified:    { type: boolean }
+
+    AdminSpeedBump:
+      type: object
+      required: [id, osmType, osmId, featureType, name, lat, lng, source, alertEnabled, verified, status, createdAt, updatedAt]
+      properties:
+        id:           { type: string }
+        osmType:      { type: string }
+        osmId:        { type: string }
+        featureType:  { type: string }
+        name:         { type: string }
+        road:         { type: ["string", "null"] }
+        description:  { type: ["string", "null"] }
+        lat:          { type: number }
+        lng:          { type: number }
+        direction:    { type: ["string", "null"] }
+        source:       { type: string }
+        alertEnabled: { type: boolean }
+        verified:     { type: boolean }
+        status:       { type: string, enum: [active, inactive] }
+        createdBy:    { type: ["string", "null"] }
+        createdAt:    { type: string }
+        updatedAt:    { type: string }
+
+    AdminSpeedBumpList:
+      type: object
+      required: [bumps, total, page, limit]
+      properties:
+        bumps:
+          type: array
+          items: { $ref: "#/components/schemas/AdminSpeedBump" }
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+
+    SpeedBumpInput:
+      type: object
+      required: [name, featureType, lat, lng]
+      properties:
+        name:         { type: string, minLength: 1 }
+        road:         { type: ["string", "null"] }
+        description:  { type: ["string", "null"] }
+        featureType:  { type: string }
+        lat:          { type: number }
+        lng:          { type: number }
+        direction:    { type: ["string", "null"] }
+        alertEnabled: { type: boolean }
+
+    SpeedBumpUpdate:
+      type: object
+      properties:
+        name:         { type: string, minLength: 1 }
+        road:         { type: ["string", "null"] }
+        description:  { type: ["string", "null"] }
+        featureType:  { type: string }
+        lat:          { type: number }
+        lng:          { type: number }
+        direction:    { type: ["string", "null"] }
+        alertEnabled: { type: boolean }
+        verified:     { type: boolean }
+        status:       { type: string, enum: [active, inactive] }
 
     SuccessResult:
       type: object

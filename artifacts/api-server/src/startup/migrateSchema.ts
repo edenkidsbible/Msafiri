@@ -15,6 +15,40 @@ import { sql } from "drizzle-orm";
 import { logger } from "../lib/logger.js";
 
 export async function migrateSchema(): Promise<void> {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS speed_bumps (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        osm_type TEXT NOT NULL,
+        osm_id TEXT NOT NULL,
+        feature_type TEXT NOT NULL,
+        name TEXT NOT NULL,
+        road TEXT,
+        description TEXT,
+        lat DOUBLE PRECISION NOT NULL,
+        lng DOUBLE PRECISION NOT NULL,
+        direction TEXT,
+        source TEXT NOT NULL DEFAULT 'openstreetmap',
+        source_tags JSONB NOT NULL DEFAULT '{}'::jsonb,
+        alert_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+        verified BOOLEAN NOT NULL DEFAULT FALSE,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_by TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS speed_bumps_source_object_uq
+        ON speed_bumps (source, osm_type, osm_id)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS speed_bumps_status_idx
+        ON speed_bumps (status, alert_enabled)
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS speed_bumps_location_idx
+        ON speed_bumps (lat, lng)
+    `);
   try {
     // sharing_sessions.live_activity_push_token — added for Task #47.
     // Stores the APNs push token of the driver's iOS Live Activity so the

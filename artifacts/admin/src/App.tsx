@@ -48,6 +48,7 @@ function OpsRoute({ component: Component }: { component: React.ComponentType }) 
 import Reports from "@/pages/reports";
 import ModerationQueue from "@/pages/moderation-queue";
 import SpeedZones from "@/pages/speed-zones";
+import SpeedBumps from "@/pages/speed-bumps";
 import Users from "@/pages/users";
 import AuditLog from "@/pages/audit-log";
 import Notifications from "@/pages/notifications";
@@ -144,6 +145,7 @@ function Router() {
       <Route path="/reports"><ProtectedRoute component={Reports} feature="reports" /></Route>
       <Route path="/moderation-queue"><ProtectedRoute component={ModerationQueue} feature="reports" /></Route>
       <Route path="/speed-zones"><ProtectedRoute component={SpeedZones} feature="speed_zones" /></Route>
+      <Route path="/speed-bumps"><ProtectedRoute component={SpeedBumps} feature="speed_zones" /></Route>
       <Route path="/users"><ProtectedRoute component={Users} feature="team" /></Route>
       <Route path="/audit-log"><ProtectedRoute component={AuditLog} feature="audit_log" /></Route>
       <Route path="/notifications"><ProtectedRoute component={Notifications} feature="notifications" /></Route>

@@ -1,6 +1,7 @@
 export * from "./reports";
 export * from "./admin";
 export * from "./speedZones";
+export * from "./speedBumps";
 export * from "./push";
 export * from "./releases";
 export * from "./blog";

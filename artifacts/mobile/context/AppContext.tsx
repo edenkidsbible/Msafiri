@@ -29,10 +29,12 @@ import {
   BG_SESSION_ID_KEY,
   BG_ZONES_CACHE_KEY,
   BG_REPORTS_CACHE_KEY,
+  BG_SPEED_BUMPS_CACHE_KEY,
   BG_LAST_FIX_KEY,
   BG_ROAD_CONTEXT_KEY,
   type BgZoneEntry,
   type BgReportEntry,
+  type BgSpeedBumpEntry,
   type BgLastFix,
 } from "@/utils/backgroundDriveAlerts";
 import {
@@ -91,6 +93,23 @@ export interface CommunityReport {
   observationContext?: "on_location" | "recent_nearby" | "community_tip";
   /** Epoch ms when the reporter says they saw the incident (may differ from timestamp). */
   observedAt?: number;
+}
+
+export interface SpeedBump {
+  id: string;
+  /** Legacy OSM provenance; GET /speed-bumps need not provide these fields. */
+  osmType?: string;
+  osmId?: string;
+  featureType: string;
+  name: string;
+  road?: string | null;
+  description?: string | null;
+  lat: number;
+  lng: number;
+  direction?: string | null;
+  source: string;
+  alertEnabled: boolean;
+  verified: boolean;
 }
 
 // HERE Live Traffic incident — sourced from the HERE Traffic API, not community-reported.
@@ -183,7 +202,7 @@ export interface AppRoute {
  *  the UI can render them as a unified, sorted "what's ahead" list. */
 export interface RouteIncident {
   id: string;
-  source: "static" | "report" | "here";
+  source: "static" | "report" | "here" | "speed_bump";
   type: string;
   label: string;
   name: string;
@@ -217,7 +236,7 @@ export interface RouteCheckResult {
  *  trigger the full-screen panel. */
 export interface DriveAlert {
   id: string;
-  source: "zone" | "report" | "here";
+  source: "zone" | "report" | "here" | "speed_bump";
   type: string;
   name: string;
   road?: string | null;
@@ -264,6 +283,7 @@ interface AppContextValue {
   sosContact: SOSContact | null;
   setSosContact: (c: SOSContact | null) => void;
   communityReports: CommunityReport[];
+  speedBumps: SpeedBump[];
   /** Immediately fetches fresh reports from the server outside the normal poll
    *  cycle. Called by usePushNotifications when a silent "reports_refresh" push
    *  arrives so new pins appear within ~2 s of the original submission. */
@@ -440,6 +460,7 @@ const KEYS = {
   SHARE: "sdk_share",  // active sharing session — persisted so it survives backgrounding
   DRIVER_NAME: "sdk_driver_name",  // display name shown to live-share recipients
   CRASH_SENSITIVITY: "sdk_crash_sensitivity",
+  SPEED_BUMPS: "sdk_speed_bumps",
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1113,6 +1134,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [themeOverride, setThemeOverrideState] = useState<"system" | "light" | "dark">("system");
   const [sosContact, setSosContactState] = useState<SOSContact | null>(null);
   const [communityReports, setCommunityReports] = useState<CommunityReport[]>([]);
+  // Deliberately separate from speed zones: bumps do not set speed limits or
+  // participate in nearbyZones/allZones.
+  const [speedBumps, setSpeedBumps] = useState<SpeedBump[]>([]);
+  const speedBumpsRef = useRef<SpeedBump[]>([]);
+  const speedBumpsRefreshInFlightRef = useRef(false);
   const [hereIncidents, setHereIncidents] = useState<HereIncident[]>([]);
   const dismissedHereIdsRef = useRef<Set<string>>(new Set());
   /** Ref mirror of hereIncidents — read by the GPS handler (stable useCallback)
@@ -1359,7 +1385,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const communityReportsRef = useRef<CommunityReport[]>([]);
   const navDestRef = useRef<NavDestination | null>(null);
   const lastHeadingRef  = useRef<number | null>(null); // last known heading (°)
-  const alertSourceRef = useRef<"zone" | "report" | "here" | null>(null);
+  const alertSourceRef = useRef<"zone" | "report" | "here" | "speed_bump" | null>(null);
   // Type and road of the currently active alert's zone (e.g. "camera", "Ngong Road").
   // Needed for cluster deduplication: a nearby camera on the SAME road must not
   // replace/re-announce an active camera alert from the same physical cluster.
@@ -1418,9 +1444,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (async () => {
       try {
-      const [trips, reports, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName, storedCrashSensitivity, storedProfilePhoto, storedMakeId, storedModelId, storedCustomMakeName, storedCustomModelName] = await Promise.all([
+      const [trips, reports, bumps, hud, sos, onboarded, storedDeviceId, storedTheme, storedVehicleType, savedShare, storedDriverName, storedCrashSensitivity, storedProfilePhoto, storedMakeId, storedModelId, storedCustomMakeName, storedCustomModelName] = await Promise.all([
         AsyncStorage.getItem(KEYS.TRIPS),
         AsyncStorage.getItem(KEYS.REPORTS),
+        AsyncStorage.getItem(KEYS.SPEED_BUMPS),
         AsyncStorage.getItem(KEYS.HUD),
         AsyncStorage.getItem(KEYS.SOS),
         AsyncStorage.getItem(KEYS.ONBOARDING),
@@ -1460,6 +1487,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } catch { /* corrupt cache — silently reset */ }
+      }
+      if (bumps) {
+        try {
+          const parsed = JSON.parse(bumps) as SpeedBump[];
+          if (Array.isArray(parsed)) {
+            setSpeedBumps(parsed);
+            speedBumpsRef.current = parsed;
+          }
+        } catch { /* corrupt cache — fetch a fresh list */ }
       }
       if (hud) {
         try {
@@ -1993,7 +2029,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const isOnDrivenPath = (
       id: string,
-      source: "zone" | "report" | "here",
+      source: "zone" | "report" | "here" | "speed_bump",
       targetLat: number,
       targetLng: number,
     ): boolean => {
@@ -2005,7 +2041,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           ? `static-${id}`
           : source === "report"
             ? `report-${id}`
-            : id;
+            : source === "speed_bump"
+              ? `speed-bump-${id}`
+              : id;
         const incident = routeIncidentsRef.current.find((item) => item.id === routeId);
         if (!incident || (incident.offRouteM ?? Infinity) > ALERT_ROUTE_CORRIDOR_M) return false;
         const aheadM = incident.distanceAlongRouteM - routeMaxDistMRef.current;
@@ -2139,6 +2177,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       return best ? { incident: best, dist: bestDist } : null;
     })();
 
+    // Bumps are route-only alerts. Unlike reports/zones there is deliberately
+    // no free-drive road-name fallback: an active selected route is the source
+    // of truth for both direction and carriageway membership.
+    const speedBumpCandidate = (() => {
+      if (!activeRoute || !isDriving || !roadReady || !alertAccuracyOk) return null;
+      let best: SpeedBump | null = null;
+      let bestDist = Infinity;
+      for (const bump of speedBumpsRef.current) {
+        if (!bump.alertEnabled) continue;
+        const d = haversine(lat, lng, bump.lat, bump.lng);
+        if (d <= IN_ZONE_DIST || d > ALERT_DIST || d >= bestDist) continue;
+        if (!isOnDrivenPath(bump.id, "speed_bump", bump.lat, bump.lng)) continue;
+        // Route progress is authoritative; retain heading as a second passed
+        // guard between route-projection updates.
+        if (lastHeadingRef.current != null &&
+            alongTrackDistanceM(lat, lng, lastHeadingRef.current, bump.lat, bump.lng) <= 0) continue;
+        best = bump;
+        bestDist = d;
+      }
+      return best ? { bump: best, dist: bestDist } : null;
+    })();
+
     // (4) Pick winner: closest of zone / community-report / HERE incident —
     // EXCEPT that a speed camera / speed zone outranks other alert types
     // within the radius (drive-test feedback: the camera matters most; the
@@ -2146,7 +2206,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const zoneDist   = zoneCandidate?.distance ?? Infinity;
     const reportDist = reportCandidate?.dist   ?? Infinity;
     const hereDist   = hereCandidate?.dist     ?? Infinity;
-    const minDist    = Math.min(zoneDist, reportDist, hereDist);
+    const speedBumpDist = speedBumpCandidate?.dist ?? Infinity;
+    const minDist    = Math.min(zoneDist, reportDist, hereDist, speedBumpDist);
     const zoneIsSpeedCam =
       zoneCandidate != null &&
       (zoneCandidate.type === "camera" || zoneCandidate.speedLimit != null);
@@ -2181,7 +2242,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 createdAt: reportCandidate!.report.timestamp,
                 observationContext: reportCandidate!.report.observationContext,
               }
-            : {
+            : minDist === hereDist ? {
                 id: hereCandidate!.incident.id,
                 source: "here" as const,
                 type: hereCandidate!.incident.type,
@@ -2191,6 +2252,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 distance: hereCandidate!.dist,
                 lat: hereCandidate!.incident.lat,
                 lng: hereCandidate!.incident.lng,
+              } : {
+                id: speedBumpCandidate!.bump.id,
+                source: "speed_bump" as const,
+                type: "speed_bump",
+                name: speedBumpCandidate!.bump.name || "Speed bump",
+                road: speedBumpCandidate!.bump.road,
+                description: speedBumpCandidate!.bump.description,
+                distance: speedBumpCandidate!.dist,
+                lat: speedBumpCandidate!.bump.lat,
+                lng: speedBumpCandidate!.bump.lng,
               };
 
     // Signed along-track distance to the winner for the overlay distance label.
@@ -2211,16 +2282,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const curZone   = withDist.find((z) => z.id === alertZoneRef.current);
       const curReport = curZone ? null : communityReportsRef.current.find((r) => r.id === alertZoneRef.current);
       const curHere   = (curZone || curReport) ? null : hereIncidentsRef.current.find((h) => h.id === alertZoneRef.current);
+      const curBump = (curZone || curReport || curHere) ? null : speedBumpsRef.current.find((b) => b.id === alertZoneRef.current);
 
       // If none of the three sources resolves the tracked alert ID, the report
       // has vanished (denied, expired, or cleared from HERE) while we were
       // displaying it. Treat this as an unconditional dismiss — a stale
       // alertZoneRef pointing to a deleted item should never keep the banner
       // alive or crash the app by reading properties on undefined.
-      const alertSourceGone = !curZone && !curReport && !curHere;
+      const alertSourceGone = !curZone && !curReport && !curHere && !curBump;
 
-      const curItemLat = curZone?.lat ?? curReport?.lat ?? curHere?.lat;
-      const curItemLng = curZone?.lng ?? curReport?.lng ?? curHere?.lng;
+      const curItemLat = curZone?.lat ?? curReport?.lat ?? curHere?.lat ?? curBump?.lat;
+      const curItemLng = curZone?.lng ?? curReport?.lng ?? curHere?.lng ?? curBump?.lng;
       const curDist    = curZone?.distance
         ?? (curItemLat != null && curItemLng != null ? haversine(lat, lng, curItemLat, curItemLng) : null);
 
@@ -2246,7 +2318,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         // All curZone / curReport / curHere accesses below are safe because
         // alertSourceGone was false, meaning at least one source resolved.
-        const curItemRoad = curZone?.road ?? curReport?.roadName ?? curHere?.roadName;
+        const curItemRoad = curZone?.road ?? curReport?.roadName ?? curHere?.roadName ?? curBump?.road;
 
         // ── Gap 1: null-road + bearing gate ──────────────────────────────────
         // Current road flipped to null (geocode latency after a turn).  If both
@@ -2349,7 +2421,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (activeRoute && routeMaxDistMRef.current > 0) {
           const alertId = alertZoneRef.current!;
           const incident = routeIncidentsRef.current.find(
-            (i) => i.id === `static-${alertId}` || i.id === `report-${alertId}` || i.id === alertId,
+            (i) => i.id === `static-${alertId}` || i.id === `report-${alertId}` || i.id === `speed-bump-${alertId}` || i.id === alertId,
           );
           if (incident && routeMaxDistMRef.current > incident.distanceAlongRouteM + 10) {
             return true;
@@ -2469,6 +2541,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           road: h.roadName, description: h.description, distance: d,
           lat: h.lat, lng: h.lng,
         });
+      }
+      if (activeRoute) {
+        for (const b of speedBumpsRef.current) {
+          if (!b.alertEnabled || b.id === winner.id) continue;
+          const d = haversine(lat, lng, b.lat, b.lng);
+          if (d <= IN_ZONE_DIST || d > MULTI_RADIUS) continue;
+          if (!isOnDrivenPath(b.id, "speed_bump", b.lat, b.lng)) continue;
+          extraCandidates.push({
+            id: b.id, source: "speed_bump", type: "speed_bump",
+            name: b.name || "Speed bump", road: b.road,
+            description: b.description, distance: d, lat: b.lat, lng: b.lng,
+          });
+        }
       }
       extraCandidates.sort((a, b) => a.distance - b.distance);
     }
@@ -3214,6 +3299,39 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(handle);
   }, [locationGranted, refreshReports]);
 
+  // Speed bumps are an independent road-feature feed. Never merge this payload
+  // into SPEED_ZONES: bumps are advisory hazards, not posted speed limits.
+  const refreshSpeedBumps = useCallback(async () => {
+    if (isOfflineRef.current || speedBumpsRefreshInFlightRef.current) return;
+    speedBumpsRefreshInFlightRef.current = true;
+    try {
+      const data = await apiGet<{ bumps: Array<{
+        id: string; featureType: string; name: string; road: string | null;
+        description: string | null; lat: number; lng: number; direction: string | null;
+        source: string; alertEnabled: boolean; verified: boolean;
+      }> }>("/speed-bumps");
+      const next: SpeedBump[] = data.bumps
+        .filter((b) => b.alertEnabled)
+        .map((b) => ({
+          id: b.id, featureType: b.featureType,
+          name: b.name, road: b.road, description: b.description,
+          lat: b.lat, lng: b.lng, direction: b.direction, source: b.source,
+          alertEnabled: b.alertEnabled, verified: b.verified,
+        }));
+      speedBumpsRef.current = next;
+      setSpeedBumps(next);
+      AsyncStorage.setItem(KEYS.SPEED_BUMPS, JSON.stringify(next)).catch(() => {});
+    } catch { /* retain independently cached bumps */ }
+    finally { speedBumpsRefreshInFlightRef.current = false; }
+  }, []);
+
+  useEffect(() => {
+    if (!locationGranted) return;
+    void refreshSpeedBumps();
+    const handle = setInterval(refreshSpeedBumps, 5 * 60_000);
+    return () => clearInterval(handle);
+  }, [locationGranted, refreshSpeedBumps]);
+
   // HERE Live Traffic incidents — poll every 5 minutes; server-side job refreshes
   // the HERE API on the same cadence, so the mobile always gets a fresh snapshot.
   useEffect(() => {
@@ -3300,6 +3418,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return [...filtered, ...dbZones];
   }, [dbZones, suppressedStaticIds]);
   useEffect(() => { allZonesRef.current = allZones; }, [allZones]);
+  useEffect(() => { speedBumpsRef.current = speedBumps; }, [speedBumps]);
   useEffect(() => { dbZonesRef.current = dbZones; }, [dbZones]);
   useEffect(() => { suppressedStaticIdsRef.current = suppressedStaticIds; }, [suppressedStaticIds]);
   useEffect(() => { dbStretchesRef.current = dbStretches; }, [dbStretches]);
@@ -3387,6 +3506,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       });
     }
 
+    // Server-managed speed bumps are projected separately from static zones so
+    // they remain advisory route incidents and can never affect speed-limit UI.
+    for (const b of speedBumps) {
+      if (!b.alertEnabled) continue;
+      const proj = projectOntoRoute(activeRoute.coords, routeCumDist, b.lat, b.lng);
+      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
+        list.push({
+          id: `speed-bump-${b.id}`,
+          source: "speed_bump",
+          type: "speed_bump",
+          label: "Speed bump",
+          name: b.name || "Speed bump",
+          road: b.road ?? undefined,
+          description: b.description ?? undefined,
+          lat: b.lat,
+          lng: b.lng,
+          distanceAlongRouteM: proj.alongRouteM,
+          offRouteM: proj.offRouteM,
+        });
+      }
+    }
+
     // Community reports — still O(reports × routeLen) but typically ≤50 reports
     for (const r of communityReports) {
       if (r.status === "expired" || r.status === "denied" || r.type === "clear") continue;
@@ -3434,7 +3575,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     }
     return list.sort((a, b) => a.distanceAlongRouteM - b.distanceAlongRouteM);
-  }, [projectedZonesOnRoute, activeRoute, routeCumDist, communityReports, vehicleType, hereIncidents]);
+  }, [projectedZonesOnRoute, activeRoute, routeCumDist, communityReports, vehicleType, hereIncidents, speedBumps]);
 
   const currentRouteDistanceM = useMemo(() => {
     if (!activeRoute || !routeCumDist || currentLat == null || currentLng == null) return null;
@@ -3564,6 +3705,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           confirmCount: r.confirmCount,
           timestamp: r.timestamp,
           reportStatus: r.status,
+        });
+      }
+    }
+    for (const b of speedBumpsRef.current) {
+      if (!b.alertEnabled) continue;
+      const proj = projectOntoRoute(route.coords, cumDist, b.lat, b.lng);
+      if (proj && proj.offRouteM < ROUTE_CORRIDOR_M) {
+        list.push({
+          id: `speed-bump-${b.id}`, source: "speed_bump", type: "speed_bump",
+          label: "Speed bump", name: b.name || "Speed bump", road: b.road ?? undefined,
+          description: b.description ?? undefined, lat: b.lat, lng: b.lng,
+          distanceAlongRouteM: proj.alongRouteM, offRouteM: proj.offRouteM,
         });
       }
     }
@@ -4049,6 +4202,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }));
     AsyncStorage.setItem(BG_REPORTS_CACHE_KEY, JSON.stringify(compact)).catch(() => {});
   }, [communityReports]);
+  // Keep advisory bumps in their own background cache. In particular, do not
+  // add them to BG_ZONES_CACHE_KEY because that list drives speed-limit logic.
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const compact: BgSpeedBumpEntry[] = speedBumps
+      .filter((b) => b.alertEnabled)
+      .map((b) => ({
+        id: b.id, lat: b.lat, lng: b.lng, name: b.name || "Speed bump",
+        road: b.road, direction: b.direction,
+      }));
+    AsyncStorage.setItem(BG_SPEED_BUMPS_CACHE_KEY, JSON.stringify(compact)).catch(() => {});
+  }, [speedBumps]);
   const setHudMode = useCallback((v: boolean) => { setHudModeState(v); AsyncStorage.setItem(KEYS.HUD, JSON.stringify(v)); }, []);
   const setThemeOverride = useCallback((v: "system" | "light" | "dark") => {
     setThemeOverrideState(v);
@@ -4909,7 +5074,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       themeOverride, setThemeOverride,
       clearAllData,
       sosContact, setSosContact,
-      communityReports, refreshReports, addReport, confirmReport, denyReport, deleteReport, flagReport, updateReport, deviceId,
+      communityReports, speedBumps, refreshReports, addReport, confirmReport, denyReport, deleteReport, flagReport, updateReport, deviceId,
       currentTrip, tripHistory, clearTripHistory,
       liveOdometerKm: odoBaseKm + (currentTrip != null ? (currentTrip.distance ?? 0) / 1000 : 0),
       hydrated, onboardingComplete, completeOnboarding,
@@ -4956,7 +5121,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     themeOverride, setThemeOverride,
     clearAllData,
     sosContact, setSosContact,
-    communityReports, refreshReports, addReport, confirmReport, denyReport, deleteReport, flagReport, updateReport, deviceId,
+    communityReports, speedBumps, refreshReports, addReport, confirmReport, denyReport, deleteReport, flagReport, updateReport, deviceId,
     currentTrip, tripHistory, clearTripHistory,
     odoBaseKm,
     hydrated, onboardingComplete, completeOnboarding,
