@@ -105,7 +105,7 @@ router.get("/places/search", async (req, res) => {
 type QueryCategory =
   | "fuel" | "food" | "hospital" | "pharmacy" | "shopping"
   | "bank_atm" | "police" | "parking" | "hotel" | "toilets"
-  | "nightlife" | "gym";
+  | "nightlife" | "gym" | "car_wash" | "garage";
 
 interface GooglePlacesParams {
   type: string;
@@ -125,6 +125,8 @@ const CATEGORY_MAP: Record<QueryCategory, GooglePlacesParams> = {
   toilets:   { type: "point_of_interest", keyword: "toilets" },
   nightlife: { type: "night_club" },
   gym:       { type: "gym" },
+  car_wash:  { type: "car_wash" },
+  garage:    { type: "car_repair" },
 };
 
 const VALID_CATEGORIES = new Set<string>(Object.keys(CATEGORY_MAP));
@@ -144,7 +146,7 @@ const VALID_CATEGORIES = new Set<string>(Object.keys(CATEGORY_MAP));
  *   lat      – latitude (required)
  *   lng      – longitude (required)
  *   radius   – search radius in metres (required, capped at 50 000 server-side)
- *   category – one of the 12 RouteSearchSheet QueryCategory strings (required)
+ *   category – one of the supported nearby-place category strings (required)
  */
 router.get("/places/nearby", async (req, res) => {
   try {

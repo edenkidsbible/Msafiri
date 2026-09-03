@@ -11,7 +11,7 @@ import { fetchWithTimeout } from "@/utils/fetchTimeout";
 export type QueryCategory =
   | "fuel" | "food" | "hospital" | "pharmacy" | "shopping"
   | "bank_atm" | "police" | "parking" | "hotel" | "toilets"
-  | "nightlife" | "gym";
+  | "nightlife" | "gym" | "car_wash" | "garage";
 
 export interface CategoryDef {
   label: string;
@@ -146,9 +146,25 @@ export const CATEGORIES: Record<QueryCategory, CategoryDef> = {
       `way["leisure"="sports_centre"](around:{r},{lat},{lng});`,
     defaultName: "Gym",
   },
+  car_wash: {
+    label: "Car Wash", color: "#0288D1", chip: "Car Wash",
+    filters:
+      `node["amenity"="car_wash"](around:{r},{lat},{lng});` +
+      `way["amenity"="car_wash"](around:{r},{lat},{lng});`,
+    defaultName: "Car Wash",
+  },
+  garage: {
+    label: "Garage / Car Repair", color: "#6D4C41", chip: "Garage",
+    filters:
+      `node["shop"="car_repair"](around:{r},{lat},{lng});` +
+      `node["craft"="car_repair"](around:{r},{lat},{lng});` +
+      `way["shop"="car_repair"](around:{r},{lat},{lng});` +
+      `way["craft"="car_repair"](around:{r},{lat},{lng});`,
+    defaultName: "Garage",
+  },
 };
 
-// ── Chip list (the 10 shown on map) ─────────────────────────────────────────
+// ── Category chips shown on the map ──────────────────────────────────────────
 
 export const MAP_CHIPS: Array<{ cat: QueryCategory; label: string; icon: string }> = [
   { cat: "fuel",     label: "Fuel",     icon: "flame-outline" },
@@ -162,6 +178,8 @@ export const MAP_CHIPS: Array<{ cat: QueryCategory; label: string; icon: string 
   { cat: "hotel",    label: "Hotel",    icon: "bed-outline" },
   { cat: "nightlife",label: "Nightlife",icon: "wine-outline" },
   { cat: "gym",      label: "Gym",      icon: "fitness-outline" },
+  { cat: "car_wash", label: "Car Wash", icon: "water-outline" },
+  { cat: "garage",   label: "Garage",   icon: "construct-outline" },
 ];
 
 // ── Keyword → category mapper ────────────────────────────────────────────────
@@ -179,6 +197,8 @@ const KEYWORD_MAP: Array<{ words: string[]; cat: QueryCategory }> = [
   { words: ["toilet", "toilets", "restroom", "bathroom", "wc", "loo"], cat: "toilets" },
   { words: ["nightlife", "bar", "pub", "club", "nightclub", "drinks", "lounge", "cocktail", "beer", "wine", "spirits"], cat: "nightlife" },
   { words: ["gym", "fitness", "workout", "exercise", "crossfit", "yoga", "pilates", "weights", "swimming", "pool"], cat: "gym" },
+  { words: ["car wash", "carwash", "vehicle wash", "auto wash"], cat: "car_wash" },
+  { words: ["garage", "mechanic", "car repair", "vehicle repair", "auto repair", "tyre repair"], cat: "garage" },
 ];
 
 export function resolveCategory(query: string): QueryCategory | null {
