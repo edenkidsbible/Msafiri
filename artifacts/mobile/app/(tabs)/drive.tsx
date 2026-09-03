@@ -337,9 +337,6 @@ export default function DriveScreen() {
   const [nameInput, setNameInput] = useState("");
   const [speedStripHeight, setSpeedStripHeight] = useState(150);
   const [showNearbySheet, setShowNearbySheet] = useState(false);
-  // Keep the active-drive surface map-first. The safety actions stay visible,
-  // while secondary trip details open on demand.
-  const [driveControlsExpanded, setDriveControlsExpanded] = useState(false);
   const [driveControlsHidden, setDriveControlsHidden] = useState(false);
   // Destination picker modal — opened from the pre-trip idle screen
   const [showDestPicker, setShowDestPicker] = useState(false);
@@ -390,7 +387,6 @@ export default function DriveScreen() {
   // state, not a preference that should carry into the next trip.
   useEffect(() => {
     if (tripActive) {
-      setDriveControlsExpanded(false);
       setDriveControlsHidden(false);
     }
   }, [tripActive]);
@@ -3503,9 +3499,8 @@ export default function DriveScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Secondary details stay available, but do not take map height until
-              the driver asks for them. Current speed is already on the map dial. */}
-          {driveControlsExpanded && (() => {
+          {/* Full control dock. Current speed is already on the map dial. */}
+          {(() => {
             const sc  = driveScore.score;
             const clr = getScoreColor(sc);
             const durTxt = (() => {
@@ -3576,35 +3571,6 @@ export default function DriveScreen() {
               </View>
             );
           })()}
-
-          <TouchableOpacity
-            style={[styles.driveControlsToggle, {
-              backgroundColor: isDark ? "#191E1B" : c.muted,
-              borderColor: c.tileBorder,
-            }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              setDriveControlsExpanded((expanded) => !expanded);
-            }}
-            activeOpacity={0.8}
-            accessibilityRole="button"
-            accessibilityLabel={driveControlsExpanded ? "Hide drive details" : "Show more drive controls"}
-            testID="drive-controls-toggle"
-          >
-            <Ionicons
-              name={driveControlsExpanded ? "chevron-down" : "chevron-up"}
-              size={16}
-              color={c.mutedForeground}
-            />
-            <Text style={[styles.driveControlsToggleText, { color: c.mutedForeground }]}>
-              {driveControlsExpanded ? "Hide details" : "More controls"}
-            </Text>
-            {!driveControlsExpanded && (
-              <Text style={[styles.driveControlsHint, { color: c.mutedForeground }]}>
-                Score · time · distance · share
-              </Text>
-            )}
-          </TouchableOpacity>
 
           {/* Bottom row: Dashcam toggle · red Stop Drive · Audio Alerts toggle */}
           <View style={styles.dmBottomRow}>
@@ -5470,26 +5436,6 @@ const styles = StyleSheet.create({
   },
   endTripBtnTxt: { fontSize: 12, fontFamily: "Inter_700Bold", color: "#FFF" },
   dmTileRow: { flexDirection: "row", gap: 8 },
-  driveControlsToggle: {
-    minHeight: 34,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    marginTop: 2,
-  },
-  driveControlsToggleText: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-  },
-  driveControlsHint: {
-    fontSize: 10,
-    fontFamily: "Inter_400Regular",
-    marginLeft: 2,
-  },
   hideControlsBtn: {
     alignSelf: "center",
     flexDirection: "row",
