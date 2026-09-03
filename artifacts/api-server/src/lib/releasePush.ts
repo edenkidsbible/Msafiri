@@ -16,11 +16,14 @@ export async function fireReleasePush(
   release: AppRelease,
   actorName: string,
 ): Promise<void> {
-  // Use admin-specified custom copy when set; fall back to auto-generated.
-  const notifTitle = release.notifTitle ??
-    (release.isForceUpdate
-      ? `Msafiri just got better 🚀`
-      : `What's new in Msafiri v${release.version} ✨`);
+  // Keep lock-screen titles compact. Older saved custom titles that exceed the
+  // current limit fall back to a clear short title instead of being cut off by
+  // the operating system.
+  const customTitle = release.notifTitle?.trim();
+  const notifTitle =
+    customTitle && Array.from(customTitle).length <= 20
+      ? customTitle
+      : "Update ready";
   const notifBody = release.notifBody ??
     (release.isForceUpdate
       ? `v${release.version} is ready for you — a quick update and you're back on the road.`

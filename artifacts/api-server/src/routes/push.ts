@@ -132,9 +132,9 @@ router.post("/push/location", async (req: Request, res: Response) => {
 
 // ── Rotating welcome messages ─────────────────────────────────────────────────
 const WELCOME_MESSAGES = [
-  { title: "Pro unlocked! 🎉", body: "Live alerts, speed cams & community reports — all yours. Drive safe!" },
-  { title: "You're in! 🚗", body: "Hazards, cameras & road alerts live. Open Msafiri to see what's ahead." },
-  { title: "Welcome aboard! 🛡️", body: "Real-time road intel unlocked. We've got your back on every trip." },
+  { title: "Pro unlocked", body: "Live alerts, speed cams & community reports — all yours. Drive safe!" },
+  { title: "Pro unlocked", body: "Hazards, cameras & road alerts live. Open Msafiri to see what's ahead." },
+  { title: "Welcome", body: "Real-time road intel unlocked. We've got your back on every trip." },
 ];
 
 // POST /push/welcome — send a one-time welcome notification after a subscription purchase.
@@ -180,9 +180,9 @@ router.post("/push/welcome", async (req: Request, res: Response) => {
 
 // ── Rotating post-trip messages ───────────────────────────────────────────────
 const TRIP_COMPLETE_MESSAGES = [
-  { title: "Safe trip? 🙌", body: "Seen something? A quick report takes 10 secs and helps thousands of drivers." },
-  { title: "Made it! ✅", body: "Spot any hazards or cameras? Report in 10 secs and help other drivers." },
-  { title: "Journey done! 🚗", body: "Saw a pothole or checkpoint? Takes 10 secs to report — keeps everyone safer." },
+  { title: "Trip complete", body: "Seen something? A quick report takes 10 secs and helps thousands of drivers." },
+  { title: "Trip complete", body: "Spot any hazards or cameras? Report in 10 secs and help other drivers." },
+  { title: "Trip complete", body: "Saw a pothole or checkpoint? Takes 10 secs to report — keeps everyone safer." },
 ];
 
 // POST /push/trip-complete — nudge the driver to report road conditions after navigation ends.

@@ -186,7 +186,7 @@ export async function startBackgroundShareTask(): Promise<boolean> {
       // Android: a persistent foreground-service notification is required for
       // background location access; this doubles as the "sharing active" badge.
       foregroundService: {
-        notificationTitle: "Trip sharing is active",
+        notificationTitle: "Trip sharing",
         notificationBody: "Your location is being shared. Tap to return to Msafiri.",
         notificationColor: "#00C853",
       },

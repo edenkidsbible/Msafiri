@@ -175,10 +175,10 @@ async function expireStale() {
 // ── Report milestone gamification notifications ───────────────────────────────
 
 const MILESTONE_MESSAGES: Record<number, { title: string; body: string }> = {
-  10:  { title: "10 reports! 📍", body: "You're making a real difference on Kenyan roads. Keep it up!" },
-  50:  { title: "50 reports! 🏆", body: "You're a trusted road guardian. Drivers around you are safer." },
-  100: { title: "Road Hero! ⭐", body: "100 reports — you've earned the Road Hero badge. Thank you!" },
-  500: { title: "Legend! 🎖️", body: "500 reports — one of our most valuable contributors. Incredible!" },
+  10:  { title: "10 reports", body: "You're making a real difference on Kenyan roads. Keep it up!" },
+  50:  { title: "50 reports", body: "You're a trusted road guardian. Drivers around you are safer." },
+  100: { title: "Road Hero", body: "100 reports — you've earned the Road Hero badge. Thank you!" },
+  500: { title: "Road Legend", body: "500 reports — one of our most valuable contributors. Incredible!" },
 };
 
 async function checkReportMilestone(deviceId: string): Promise<void> {
@@ -529,7 +529,7 @@ async function notifyReporterUnderReview(deviceId: string, type: string): Promis
   await sendPushNotifications([
     {
       to: tokenRow.token,
-      title: "Report under review",
+      title: "Report review",
       body: `Your ${typeLabel} report is being reviewed by our team and will go live once approved.`,
       sound: "default",
       channelId: "msafiri_general",

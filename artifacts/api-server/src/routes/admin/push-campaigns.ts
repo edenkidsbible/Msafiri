@@ -147,6 +147,9 @@ router.post("/push/campaigns", async (req: Request, res: Response) => {
   if (!title || !body) {
     return res.status(400).json({ error: "title and body are required" });
   }
+  if (Array.from(title.trim()).length > 20) {
+    return res.status(400).json({ error: "title must be 20 characters or fewer" });
+  }
 
   try {
     const isImmediate = !scheduledAt;
@@ -265,7 +268,7 @@ router.post("/push/test/android-latest", async (req: Request, res: Response) => 
 
     const { ok, failed, ticketIds } = await sendPushNotifications([{
       to: device.token,
-      title: "Msafiri Android delivery test",
+      title: "Android test",
       body: "If you can see this, Android push delivery is working.",
       sound: "default",
       channelId: "msafiri_general",
@@ -333,7 +336,7 @@ router.post("/push/silent-ping", async (req: Request, res: Response) => {
     const [campaign] = await db
       .insert(pushCampaignsTable)
       .values({
-        title:       "(Silent wake-up ping)",
+        title:       "(Silent wake-up)",
         body:        "",
         type:        "silent_ping",
         status:      "sent",

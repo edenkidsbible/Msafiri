@@ -133,6 +133,10 @@ function ComposeDialog({ onSent }: { onSent: () => void }) {
       toast({ title: "Required fields", description: "Title and message are required.", variant: "destructive" });
       return;
     }
+    if (Array.from(title.trim()).length > 20) {
+      toast({ title: "Title too long", description: "Use 20 characters or fewer.", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try {
       await authFetch("/admin/push/campaigns", {
@@ -178,12 +182,12 @@ function ComposeDialog({ onSent }: { onSent: () => void }) {
             <Label htmlFor="push-title">Title</Label>
             <Input
               id="push-title"
-              placeholder="e.g. 🚨 New hazard reported on Thika Road"
+              placeholder="e.g. App tip"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              maxLength={80}
+              maxLength={20}
             />
-            <p className="text-xs text-muted-foreground text-right">{title.length}/80</p>
+            <p className="text-xs text-muted-foreground text-right">{Array.from(title).length}/20</p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="push-body">Message</Label>

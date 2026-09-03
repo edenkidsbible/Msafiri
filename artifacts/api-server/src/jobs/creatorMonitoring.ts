@@ -126,7 +126,7 @@ export async function runCreatorMonitoring(): Promise<{
         creator.pushToken
           ? sendPushNotifications([{
               to: creator.pushToken,
-              title: "Your creator benefit needs activity",
+              title: "Creator reminder",
               body: `No qualifying report for ${result.inactiveDays} days. Submit a genuine road report when it is safe.`,
               sound: "default",
               channelId: "msafiri_general",

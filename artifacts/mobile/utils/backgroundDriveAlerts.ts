@@ -265,9 +265,9 @@ function resolveIosNotificationSound(
 }
 
 const TYPE_LABELS: Record<string, string> = {
-  camera:     "Speed camera",
-  police:     "Police checkpoint",
-  alcoblow:   "Alcoblow checkpoint",
+  camera:     "Camera",
+  police:     "Police",
+  alcoblow:   "Alcoblow",
   hazard:     "Hazard",
   accident:   "Accident",
   pothole:    "Pothole",
@@ -275,10 +275,10 @@ const TYPE_LABELS: Record<string, string> = {
   roadblock:  "Roadblock",
   roadworks:  "Road works",
   traffic:    "Traffic",
-  weather:    "Weather hazard",
-  debris:     "Debris on road",
+  weather:    "Weather",
+  debris:     "Debris",
   breakdown:  "Breakdown",
-  closure:    "Road closure",
+  closure:    "Road closed",
 };
 
 /**
@@ -294,7 +294,7 @@ function locationOptions(mode: AccuracyMode): Parameters<typeof Location.startLo
     showsBackgroundLocationIndicator: true,
     ...(Platform.OS === "android" ? {
       foregroundService: {
-        notificationTitle:   "Msafiri Drive Mode",
+        notificationTitle:   "Drive mode",
         notificationBody:    "Monitoring for nearby hazards and speed zones",
         notificationColor:   "#00C853",
         killServiceOnDestroy: false,
@@ -711,7 +711,7 @@ export function defineBackgroundDriveAlertsTask(): void {
 
         await Notifications.scheduleNotificationAsync({
           content: {
-            title: `⚠️ ${label} ahead`,
+            title: `${label} ahead`,
             body:  `${label} ahead${speedPart} · ${distKm}`,
             sound: iosSound,
             // lat/lng/alertId let the notification tap handler open the map

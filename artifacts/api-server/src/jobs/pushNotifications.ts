@@ -28,171 +28,171 @@ const FEATURE_CATALOG: FeatureDef[] = [
   {
     id: "dashcam",
     t1: {
-      title: "📹 Your built-in dashcam is waiting",
+      title: "📹 Try Dashcam",
       body: "Record your drive automatically — no extra device, no extra cost. Tap to activate in Msafiri.",
     },
     t2: {
-      title: "📹 Other dashcam apps cost Ksh 5,000+",
+      title: "📹 Dashcam savings",
       body: "Msafiri records your drive in the background. Evidence is everything in an accident. You're not using it.",
     },
     t3: {
-      title: "📹 No footage = your word against theirs",
+      title: "📹 Keep drive proof",
       body: "Every unrecorded drive is a risk. Msafiri's dashcam is already on your phone — you just haven't turned it on.",
     },
     t4: {
-      title: "📹 How do you prove what happened?",
+      title: "📹 Record your drive",
       body: "Thousands of Msafiri drivers record every trip. Insurance claims, police disputes, hit-and-runs — footage wins every time. Still not recording?",
     },
   },
   {
     id: "speed_cameras",
     t1: {
-      title: "📸 Speed camera on your route?",
+      title: "📸 Camera alerts",
       body: "Msafiri gets real reports from real drivers. Know before you're caught — not after.",
     },
     t2: {
-      title: "📸 Kenyan traffic fines go up every year",
+      title: "📸 Avoid speed fines",
       body: "Speed cameras, police traps, and checkpoints — all reported live. Other apps guess. Msafiri's community knows.",
     },
     t3: {
-      title: "📸 Every Msafiri driver sees cameras you don't",
+      title: "📸 Cameras ahead",
       body: "Real-time speed camera alerts from drivers on your exact road, right now. You're driving blind without us.",
     },
     t4: {
-      title: "📸 Msafiri could've prevented those fines",
+      title: "📸 Drive fine-aware",
       body: "Speed cameras, alcoblow checkpoints, police traps — all reported by real drivers in real time. Still driving without us?",
     },
   },
   {
     id: "alcoblow",
     t1: {
-      title: "🍺 Alcoblow checkpoint ahead?",
+      title: "🍺 Alcoblow alerts",
       body: "Msafiri drivers report checkpoints in real time. Know what's on your route before you encounter it.",
     },
     t2: {
-      title: "🍺 Checkpoint reports near you, live",
+      title: "🍺 Checkpoints nearby",
       body: "Community-reported alcoblow checkpoints, roadblocks, and police traps. Not on any other Kenyan app like this.",
     },
     t3: {
-      title: "🍺 Every other Kenyan app is guessing",
+      title: "🍺 Live checkpoints",
       body: "Msafiri's alcoblow alerts come from actual drivers on your road. Live. Not yesterday's data. Not a guess.",
     },
     t4: {
-      title: "🍺 No checkpoint warning system yet?",
+      title: "🍺 Know checkpoints",
       body: "Police checkpoints, alcoblow traps, surprise roadblocks — Msafiri drivers see them first. Come back and drive with eyes open.",
     },
   },
   {
     id: "trip_sharing",
     t1: {
-      title: "🛡️ Share your trip with someone you trust",
+      title: "🛡️ Share your trip",
       body: "One tap lets family or friends follow your journey live — until you arrive safely.",
     },
     t2: {
-      title: "🛡️ Someone worries every time you drive alone",
+      title: "🛡️ Live sharing",
       body: "Msafiri trip sharing lets loved ones track your drive in real time. No other Kenyan driving app does this.",
     },
     t3: {
-      title: "🛡️ Most accidents happen on familiar roads",
+      title: "🛡️ Safe sharing",
       body: "Send a live trip share before you drive. If something happens, someone will know exactly where you are.",
     },
     t4: {
-      title: "🛡️ Nobody tracked your last drive",
+      title: "🛡️ Trip not shared",
       body: "Msafiri trip sharing is the closest thing to a safety net on Kenyan roads. It takes 10 seconds. Still not using it?",
     },
   },
   {
     id: "crash_assistant",
     t1: {
-      title: "🚨 Accident? Msafiri guides you step by step",
+      title: "🚨 Crash guide",
       body: "From photos to police reports — the Crash Assistant walks you through everything at the scene.",
     },
     t2: {
-      title: "🚨 Most claims fail — missing evidence",
+      title: "🚨 Save crash proof",
       body: "Msafiri's Crash Assistant documents everything at the scene — photos, location, statements, insurance details. All in one app.",
     },
     t3: {
-      title: "🚨 We help you survive the aftermath",
+      title: "🚨 After-crash help",
       body: "Crash Assistant, dashcam footage, and accident documentation — all in one Kenyan app. Nothing else comes close.",
     },
     t4: {
-      title: "🚨 Would you know what to do after a crash?",
+      title: "🚨 Crash steps",
       body: "Step-by-step guidance, auto-documentation, dashcam clips, insurance submission — Msafiri has you covered end to end.",
     },
   },
   {
     id: "audio_course",
     t1: {
-      title: "🎧 Kenyan roads have rules you might not know",
+      title: "🎧 Learn road rules",
       body: "The Msafiri audio course covers what every driver on these roads should understand. Listen while you drive.",
     },
     t2: {
-      title: "🎧 Most drivers skip the Highway Code",
+      title: "🎧 Highway Code",
       body: "We turned it into a 10-minute audio course you can finish on your commute. Already inside the app — free.",
     },
     t3: {
-      title: "🎧 The course no other driving app has",
+      title: "🎧 Driver course",
       body: "An audio course built specifically for Kenyan roads — speed zones, rules, hazards. Exclusive to Msafiri.",
     },
     t4: {
-      title: "🎧 You drive daily. Know all the rules?",
+      title: "🎧 Know road rules",
       body: "The Msafiri audio course is already waiting for you. 10 minutes. Could save you a fine — or much worse.",
     },
   },
   {
     id: "car_service",
     t1: {
-      title: "🔧 Need a mechanic or fuel station near you?",
+      title: "🔧 Find nearby help",
       body: "Find trusted garages, fuel stations, and car wash spots near you — already inside Msafiri under 'Nearby'.",
     },
     t2: {
-      title: "🔧 Still calling around for a mechanic?",
+      title: "🔧 Find a mechanic",
       body: "Msafiri shows trusted garages and service centres near your location. No other Kenyan driving app does this in one place.",
     },
     t3: {
-      title: "🔧 5 apps for 5 needs. Or just Msafiri.",
+      title: "🔧 All road tools",
       body: "Navigation, hazards, speed cameras, service centres, dashcam — one app. You already have it. Use it.",
     },
     t4: {
-      title: "🔧 Too many apps for one car",
+      title: "🔧 Simplify car care",
       body: "Msafiri handles everything — from live alerts on the road to finding a mechanic after. Come back and simplify.",
     },
   },
   {
     id: "community_hazards",
     t1: {
-      title: "⚠️ New hazards reported near you",
+      title: "⚠️ Hazard alerts",
       body: "Drivers near you are flagging fresh incidents right now. Live road intel from real people on your roads.",
     },
     t2: {
-      title: "⚠️ Hazards near you — reported live",
+      title: "⚠️ Live hazards",
       body: "Potholes, accidents, debris, road works — all live on Msafiri. No other app has this from actual Kenyan drivers.",
     },
     t3: {
-      title: "⚠️ Roads change hourly. So do our alerts.",
+      title: "⚠️ Fresh road alerts",
       body: "Real-time community hazard reports from drivers on your roads. Not from a government database updated monthly.",
     },
     t4: {
-      title: "⚠️ You're driving without live road intel",
+      title: "⚠️ Hazards ahead",
       body: "Msafiri has the largest community of Kenyan drivers reporting live hazards. Every drive without it is a drive blind.",
     },
   },
   {
     id: "one_app",
     t1: {
-      title: "📱 One app for everything on the road",
+      title: "📱 Explore Msafiri",
       body: "Hazards, speed cameras, trip sharing, dashcam, crash help — all in Msafiri. Already on your phone.",
     },
     t2: {
-      title: "📱 4 apps replaced by Msafiri alone",
+      title: "📱 One driving app",
       body: "Navigation + hazards + cameras + dashcam + crash assistant. One app. Free. Kenyan-built.",
     },
     t3: {
-      title: "📱 No other Kenyan driving app comes close",
+      title: "📱 More in Msafiri",
       body: "We're not being modest — Msafiri has features no competitor offers in a single app. Come see what you've been missing.",
     },
     t4: {
-      title: "📱 Still using 5 apps Msafiri replaces?",
+      title: "📱 Replace 5 apps",
       body: "Speed cameras, alcoblow, dashcam, crash assistant, trip sharing, audio course, nearby services — all in one. Still away?",
     },
   },
@@ -464,15 +464,15 @@ async function sendActiveCampaign(type: string, title: string, body: string): Pr
 
 const RECOVERY_PHONE_NUDGE_MESSAGES = [
   {
-    title: "🔐 Your Msafiri data has no recovery phone",
+    title: "🔐 Add recovery",
     body: "If you change devices you'll lose all your vehicles and settings. Add a recovery phone — it takes 30 seconds.",
   },
   {
-    title: "📱 One step protects everything in Msafiri",
+    title: "📱 Protect your data",
     body: "Add a recovery phone number so you can restore your account on any new device. Tap to set it up now.",
   },
   {
-    title: "⚠️ Lose your phone = lose your data?",
+    title: "⚠️ Add recovery",
     body: "Link a recovery phone in Msafiri and you'll always be able to get your vehicles and settings back.",
   },
 ];
@@ -488,7 +488,7 @@ const RECOVERY_PHONE_NUDGE_MESSAGES = [
 const TRIAL_NUDGE_STAGES: Record<number, { minS: number; maxS: number; title: string; body: string }> = {
   0: {
     minS:  30 * 60, maxS: 120 * 60,
-    title: "Your trial drives are complete 🎉",
+    title: "Trial complete",
     body:  "You've used the 3 drives included in your free trial. Unlimited driving begins when the paid period starts.",
   },
   1: {
@@ -498,7 +498,7 @@ const TRIAL_NUDGE_STAGES: Record<number, { minS: number; maxS: number; title: st
   },
   2: {
     minS: 2 * 86400, maxS: 5 * 86400,
-    title: "Keep every drive protected",
+    title: "Keep driving",
     body:  "Open Msafiri to check your subscription and continue with speed-camera alerts, Dashcam and road intelligence.",
   },
 };

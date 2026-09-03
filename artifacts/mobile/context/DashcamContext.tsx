@@ -877,7 +877,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
               setCloudQuotaFull(true);
               Notifications.scheduleNotificationAsync({
                 content: {
-                  title: "Cloud storage full",
+                  title: "Storage full",
                   body: "Delete old clips in the dashcam gallery to continue backing up.",
                   data: { type: "dashcam_quota_full" },
                 },
@@ -1275,7 +1275,7 @@ export function DashcamProvider({ children }: { children: React.ReactNode }) {
     try {
       const id = await Notifications.scheduleNotificationAsync({
         content: {
-          title: "Review your dashcam clips",
+          title: "Review clips",
           body: "Your last trip's footage is saved and waiting. Tap to lock the clips you want to keep before they're gone.",
           data: { type: "dashcam_review_reminder" },
         },

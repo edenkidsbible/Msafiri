@@ -1040,12 +1040,12 @@ async function fireZoneNotification(zone: SpeedZone, distM: number) {
     console.warn("[alerts] Android channel setup failed; zone notification skipped.");
     return;
   }
-  const typeLabel = zone.type === "camera" ? "Speed Camera" : zone.type === "police" ? "Police Checkpoint" : "Speed Zone";
+  const typeLabel = zone.type === "camera" ? "Camera" : zone.type === "police" ? "Police" : "Speed zone";
   const d = distM < 1000 ? `${Math.round(distM)} m` : `${(distM / 1000).toFixed(1)} km`;
   await Notifications.scheduleNotificationAsync({
     content: {
-      title: `⚠️ ${typeLabel} Ahead — ${zone.speedLimit} km/h`,
-      body: `${zone.name} is ${d} away on ${zone.road}.`,
+      title: `${typeLabel} ahead`,
+      body: `${zone.speedLimit} km/h · ${zone.name} is ${d} away on ${zone.road}.`,
       // lat/lng/type allow the notification tap handler to open the map and
       // pulse-highlight the exact alert pin instead of just navigating to the map root.
       data: { zoneId: zone.id, type: zone.type, lat: zone.lat, lng: zone.lng },

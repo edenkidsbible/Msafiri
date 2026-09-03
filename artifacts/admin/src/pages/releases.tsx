@@ -327,12 +327,10 @@ function ReleaseDialog({
             <div className="space-y-1.5">
               <Label>Notification title</Label>
               <Input
-                placeholder={form.isForceUpdate
-                  ? "Msafiri just got better 🚀"
-                  : `What's new in Msafiri v${form.version || "X"} ✨`}
+                placeholder="Update ready"
                 value={form.notifTitle}
                 onChange={(e) => set("notifTitle", e.target.value)}
-                maxLength={64}
+                maxLength={20}
               />
             </div>
             <div className="space-y-1.5">
@@ -353,9 +351,7 @@ function ReleaseDialog({
             {(form.notifTitle.trim() || form.notifBody.trim()) && (
               <NotifPreviewCard
                 label="Preview (custom copy)"
-                title={form.notifTitle.trim() || (form.isForceUpdate
-                  ? "Msafiri just got better 🚀"
-                  : `What's new in Msafiri v${form.version || "X"} ✨`)}
+                title={form.notifTitle.trim() || "Update ready"}
                 body={form.notifBody.trim() || (form.isForceUpdate
                   ? `v${form.version || "X"} is ready for you — a quick update and you're back on the road.`
                   : (form.releaseNotes.trim()
@@ -484,9 +480,7 @@ function ReleaseDialog({
 
 // Mirrors the notification copy logic in api-server/src/lib/releasePush.ts
 function buildNotifCopy(release: Release, force: boolean) {
-  const autoTitle = force
-    ? `Msafiri just got better 🚀`
-    : `What's new in Msafiri v${release.version} ✨`;
+  const autoTitle = "Update ready";
   const autoBody = force
     ? `v${release.version} is ready for you — a quick update and you're back on the road.`
     : (release.releaseNotes

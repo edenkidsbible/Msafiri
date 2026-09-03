@@ -118,8 +118,17 @@ export async function sendPushNotifications(
   // device ID changes. Guarding at the sending boundary keeps legacy duplicate
   // rows (and overlapping audience queries) from producing two identical
   // notifications on the same phone.
+  // Final safety net for dynamic/admin-authored copy. Static titles are written
+  // short at their call sites; anything unexpectedly longer falls back to a
+  // clear generic title rather than being clipped differently across devices.
+  const titleSafeMessages = messages.map((message) =>
+    message.title && Array.from(message.title).length > 20
+      ? { ...message, title: "Msafiri alert" }
+      : message,
+  );
+
   const seenTokens = new Set<string>();
-  const uniqueMessages = messages.filter((message) => {
+  const uniqueMessages = titleSafeMessages.filter((message) => {
     if (seenTokens.has(message.to)) return false;
     seenTokens.add(message.to);
     return true;
@@ -136,7 +145,7 @@ export async function sendPushNotifications(
     return true;
   });
 
-  const duplicatesDropped = messages.length - deliveryMessages.length;
+  const duplicatesDropped = titleSafeMessages.length - deliveryMessages.length;
   if (duplicatesDropped > 0) {
     logger.warn({ duplicatesDropped }, "Suppressed duplicate Expo pushes");
   }
