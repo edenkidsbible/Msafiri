@@ -17,6 +17,7 @@ import { useApp, CommunityReport } from "@/context/AppContext";
 import { useVehicle } from "@/context/VehicleContext";
 import { useLiveLocation } from "@/context/LocationContext";
 import { ensureAndroidNotificationChannels } from "@/utils/androidNotificationChannels";
+import { requestOptionalUpdatePrompt } from "@/utils/updatePromptSession";
 
 // Resolved at build time from app.json → extra.eas.projectId.
 // Expo requires this in production to route push tokens to the correct project.
@@ -547,16 +548,28 @@ export function usePushNotifications() {
           // Force updates bypass the navActive block: a mandatory update must
           // always reach the driver, even mid-journey.
           const isForce = data?.isForceUpdate === true || data?.isForceUpdate === "true";
-          safePush({
-            pathname: "/force-update",
-            params: {
-              latestVersion:   (data?.version as string) ?? "",
-              releaseNotes:    (data?.releaseNotes as string) ?? "",
-              storeUrlIos:     (data?.storeUrlIos as string) ?? "",
-              storeUrlAndroid: (data?.storeUrlAndroid as string) ?? "",
-              isSoft:          isForce ? "false" : "true",
-            },
-          } as any, { bypassNavBlock: isForce });
+          const updateParams = {
+            latestVersion:   (data?.version as string) ?? "",
+            releaseNotes:    (data?.releaseNotes as string) ?? "",
+            storeUrlIos:     (data?.storeUrlIos as string) ?? "",
+            storeUrlAndroid: (data?.storeUrlAndroid as string) ?? "",
+          };
+          if (isForce) {
+            safePush({
+              pathname: "/force-update",
+              params: { ...updateParams, isSoft: "false" },
+            } as any, { bypassNavBlock: true });
+          } else {
+            // Optional updates are presented centrally by RootLayout after
+            // startup routing is ready. This also shares the once-per-release
+            // session gate with normal API version checks.
+            requestOptionalUpdatePrompt({
+              version: updateParams.latestVersion,
+              releaseNotes: updateParams.releaseNotes,
+              storeUrlIos: updateParams.storeUrlIos,
+              storeUrlAndroid: updateParams.storeUrlAndroid,
+            });
+          }
         } else {
           // All other types: go to home/map tab
           safePush("/(tabs)" as any);

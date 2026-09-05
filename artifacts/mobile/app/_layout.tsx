@@ -68,6 +68,12 @@ import { VehicleProvider } from "@/context/VehicleContext";
 import { useColors } from "@/hooks/useColors";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { useAppVersion } from "@/hooks/useAppVersion";
+import {
+  clearPendingOptionalUpdatePrompt,
+  getPendingOptionalUpdatePrompt,
+  subscribeOptionalUpdatePrompt,
+  type OptionalUpdatePrompt,
+} from "@/utils/updatePromptSession";
 import { checkForOTAUpdate } from "@/hooks/useOTAUpdates";
 import { initializeRevenueCat, SubscriptionProvider, useSubscription, BYPASS_PAYWALL } from "@/lib/revenuecat";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
@@ -391,8 +397,12 @@ function RootLayoutNav() {
     }
   }, [navTripActive]);
 
-  // Soft-update banner: dismissed once per session, not blocking
-  const [updateBannerDismissed, setUpdateBannerDismissed] = useState(false);
+  const [initialRoutingComplete, setInitialRoutingComplete] = useState(false);
+  const optionalUpdateShownRef = useRef<string | null>(null);
+  const [pendingOptionalUpdate, setPendingOptionalUpdate] =
+    useState<OptionalUpdatePrompt | null>(() => getPendingOptionalUpdatePrompt());
+
+  useEffect(() => subscribeOptionalUpdatePrompt(setPendingOptionalUpdate), []);
 
   // Dedicated force-update watchdog — runs independently of the one-shot
   // routing guard below so that a force update published while the app is
@@ -415,6 +425,52 @@ function RootLayoutNav() {
     } as any);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navReady, versionCheck.checked, versionCheck.isForceRequired]);
+
+  // Optional updates use the same dedicated update screen as force updates,
+  // but only once per release per app session and only after normal startup
+  // routing has completed. The screen provides an explicit "Not now" action.
+  useEffect(() => {
+    if (
+      !initialRoutingComplete ||
+      !navReady ||
+      !versionCheck.checked ||
+      versionCheck.isForceRequired ||
+      (!versionCheck.updateAvailable && !pendingOptionalUpdate)
+    ) return;
+    const releaseKey =
+      pendingOptionalUpdate?.version || versionCheck.latestVersion || "latest";
+    if (optionalUpdateShownRef.current === releaseKey) {
+      if (pendingOptionalUpdate) {
+        clearPendingOptionalUpdatePrompt();
+        setPendingOptionalUpdate(null);
+      }
+      return;
+    }
+    optionalUpdateShownRef.current = releaseKey;
+    if (pendingOptionalUpdate) {
+      clearPendingOptionalUpdatePrompt();
+      setPendingOptionalUpdate(null);
+    }
+    router.push({
+      pathname: "/force-update",
+      params: {
+        latestVersion: pendingOptionalUpdate?.version ?? versionCheck.latestVersion ?? "",
+        releaseNotes: pendingOptionalUpdate?.releaseNotes ?? versionCheck.releaseNotes ?? "",
+        storeUrlIos: pendingOptionalUpdate?.storeUrlIos ?? versionCheck.storeUrlIos ?? "",
+        storeUrlAndroid: pendingOptionalUpdate?.storeUrlAndroid ?? versionCheck.storeUrlAndroid ?? "",
+        isSoft: "true",
+      },
+    } as any);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    initialRoutingComplete,
+    navReady,
+    versionCheck.checked,
+    versionCheck.updateAvailable,
+    versionCheck.isForceRequired,
+    versionCheck.latestVersion,
+    pendingOptionalUpdate,
+  ]);
 
   useEffect(() => {
     // Wait until AppContext has hydrated from AsyncStorage and RevenueCat
@@ -453,10 +509,11 @@ function RootLayoutNav() {
       // or buys a plan. The trial itself is capped at three qualifying drives.
       router.replace("/paywall");
     } else {
+      setInitialRoutingComplete(true);
       requestLocationPermission().catch(() => {});
       // Soft prompt for existing users who never provided a name — shown once
       // per app session so it isn't intrusive, but keeps nudging until they fill it in.
-      if (!driverName && !namePromptShown.current) {
+      if (!versionCheck.updateAvailable && !driverName && !namePromptShown.current) {
         namePromptShown.current = true;
         router.replace({ pathname: "/onboarding-name", params: { mode: "existing" } } as any);
       }
@@ -527,33 +584,6 @@ function RootLayoutNav() {
       />
       <PaywallBypassBanner />
       <OfflineBanner />
-      {/* Soft update banner — shown when a newer version is available but not
-          required. Dismissable per session; taps open the relevant store page. */}
-      {versionCheck.updateAvailable && !versionCheck.isForceRequired && !updateBannerDismissed && (
-        <View style={styles.updateBanner}>
-          <Ionicons name="arrow-up-circle-outline" size={15} color="#FFF" />
-          <Text style={styles.updateBannerText} numberOfLines={1}>
-            Update available{versionCheck.latestVersion ? ` · v${versionCheck.latestVersion}` : ""}
-          </Text>
-          {(versionCheck.storeUrlIos || versionCheck.storeUrlAndroid) && (
-            <TouchableOpacity
-              onPress={() => {
-                const url = Platform.OS === "ios" ? versionCheck.storeUrlIos : versionCheck.storeUrlAndroid;
-                if (url) Linking.openURL(url).catch(() => {});
-              }}
-              hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
-            >
-              <Text style={styles.updateBannerAction}>Update</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            onPress={() => setUpdateBannerDismissed(true)}
-            hitSlop={{ top: 8, bottom: 8, left: 12, right: 12 }}
-          >
-            <Ionicons name="close" size={15} color="#FFFFFFCC" />
-          </TouchableOpacity>
-        </View>
-      )}
       <RouteIncidentsPanel />
       {/* Global alert chip — floats above all tab content on every screen
           except the Drive tab, which renders its own full DriveAlertOverlay. */}
@@ -732,26 +762,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 16,
     zIndex: 999,
-  },
-  updateBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "#E65100",
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    zIndex: 999,
-  },
-  updateBannerText: {
-    flex: 1,
-    color: "#FFF",
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-  },
-  updateBannerAction: {
-    color: "#FFD180",
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
   },
   offlineText: {
     color: "#fff",

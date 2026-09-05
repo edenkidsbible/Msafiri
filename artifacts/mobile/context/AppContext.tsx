@@ -93,6 +93,8 @@ export interface CommunityReport {
   observationContext?: "on_location" | "recent_nearby" | "community_tip";
   /** Epoch ms when the reporter says they saw the incident (may differ from timestamp). */
   observedAt?: number;
+  /** Authoritative server expiry in epoch milliseconds; null means no automatic expiry. */
+  expiresAt?: number | null;
 }
 
 export interface SpeedBump {
@@ -623,7 +625,16 @@ function pruneReportCache(reports: CommunityReport[], now: number): CommunityRep
     if (r.status === "denied" || r.status === "expired") {
       return now - r.timestamp < 7_200_000;
     }
-    // Hard cap: 24 h.
+    // Server-backed reports follow their authoritative expiry. null means the
+    // server considers the report permanent until an explicit tombstone.
+    if (r.serverId) {
+      if (r.expiresAt === null) return true;
+      if (typeof r.expiresAt === "number") return r.expiresAt > now;
+      // Upgraded caches have a server ID but no expiry field yet. Preserve the
+      // row until reconciliation supplies an expiry or tombstone.
+      return true;
+    }
+    // Truly unsynced/offline rows retain the old cap.
     return now - r.timestamp < 86_400_000;
   });
 }
@@ -3198,15 +3209,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Falls back to no filter (all active reports) when GPS is unavailable.
       const lat = currentLatRef.current;
       const lng = currentLngRef.current;
-      const url = (lat != null && lng != null)
-        ? `/reports?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}&radius=50000`
-        : `/reports`;
+      const knownIds = communityReportsRef.current
+        .map((report) => report.serverId ?? report.id)
+        .filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+      const query = new URLSearchParams();
+      if (lat != null && lng != null) {
+        query.set("lat", lat.toFixed(6));
+        query.set("lng", lng.toFixed(6));
+        query.set("radius", "50000");
+      }
+      const queryString = query.toString();
+      const url = `/reports${queryString ? `?${queryString}` : ""}`;
       const data = await apiGet<{ reports: Array<{
         id: string; type: string; source?: string; lat: number; lng: number;
         status: string; confirmCount: number; denyCount: number;
         createdAt: number; expiresAt: number | null;
         speedLimit: number | null; roadName: string | null; adminVerified: boolean;
       }> }>(url);
+      type ReconciledReport = {
+        id: string;
+        status: CommunityReport["status"];
+        expiresAt: number | null;
+      };
+      let reconciliationComplete = knownIds.length === 0;
+      let reconciledActive: ReconciledReport[] = [];
+      let removedIds: string[] = [];
+      if (knownIds.length > 0) {
+        try {
+          const batches: string[][] = [];
+          for (let index = 0; index < knownIds.length; index += 500) {
+            batches.push(knownIds.slice(index, index + 500));
+          }
+          const results = await Promise.all(
+            batches.map((ids) =>
+              apiPost<{ active: ReconciledReport[]; removedIds: string[] }>(
+                "/reports/reconcile",
+                { ids },
+              ),
+            ),
+          );
+          reconciledActive = results.flatMap((result) => result.active);
+          removedIds = results.flatMap((result) => result.removedIds);
+          reconciliationComplete = true;
+        } catch {
+          // Keep every cached report when reconciliation is unavailable. A
+          // later successful poll will refresh expiry or return a tombstone.
+          reconciliationComplete = false;
+        }
+      }
       const remote: CommunityReport[] = data.reports
         .filter((r) => r.source !== "auto")
         .map((r) => ({
@@ -3227,44 +3277,79 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         isOwn: false,
         observationContext: (r as any).observationContext as CommunityReport["observationContext"] ?? "on_location",
         observedAt: (r as any).observedAt ?? undefined,
+        expiresAt: r.expiresAt,
         ...(r.type === "camera" && (r as any).cameraType
           ? { cameraType: (r as any).cameraType as "fixed" | "mobile" }
           : {}),
       }));
       
 
-      // Clean up locallyDeniedServerIdsRef: once the server no longer
-      // returns a report (it has recorded the denial), we don't need to
-      // block it any more. Keep only IDs that are still in the response.
-      const remoteIdSet = new Set(remote.map((r) => r.id));
-      for (const sid of locallyDeniedServerIdsRef.current) {
-        if (remoteIdSet.has(sid)) {
-          // Server still returns it — keep blocking.
-        } else {
-          locallyDeniedServerIdsRef.current.delete(sid);
-        }
-      }
+      // Keep locally denied IDs blocked for the rest of this app session.
+      // A temporarily incomplete response must not clear the block and allow a
+      // later poll to resurrect a marker the driver already removed.
+      const removedIdSet = new Set(removedIds);
+      const reconciledById = new Map(
+        reconciledActive.map((report) => [report.id, report]),
+      );
 
       // Non-disruptive functional update: setCommunityReports only touches the
       // communityReports state slice. It never reads or writes alertZoneRef,
       // activeAlert, routeRef, or any other shared ref — active drives and
       // in-flight voice cues are completely unaffected.
       setCommunityReports((prev) => {
-        const owned = prev.filter((r) => r.isOwn);
         // Exclude any remote report whose server ID was locally denied but
         // the server hasn't yet reflected the denial — prevents the poll
         // from re-inserting a report the driver just voted "Gone Now" on.
         const filteredRemote = remote.filter(
           (rem) => !locallyDeniedServerIdsRef.current.has(rem.id)
         );
-        const remoteNew = filteredRemote.filter((rem) => !owned.some((o) => o.serverId === rem.id));
-        const ownedUpdated = owned.map((o) => {
-          const match = filteredRemote.find((r) => r.id === o.serverId);
-          return match
-            ? { ...o, status: match.status, confirmCount: match.confirmCount, denyCount: match.denyCount, adminVerified: match.adminVerified }
-            : o;
+        const remoteById = new Map(filteredRemote.map((report) => [report.id, report]));
+        const retainedIds = new Set<string>();
+
+        // Preserve the existing order to avoid marker/cluster churn. Refresh
+        // reports returned by the server; retain temporarily omitted active
+        // reports until the grace window expires.
+        const retained = prev.flatMap((existing) => {
+          const serverId = existing.serverId ?? existing.id;
+          const match = remoteById.get(serverId);
+          if (match) {
+            retainedIds.add(serverId);
+            return existing.isOwn
+              ? [{
+                  ...existing,
+                  status: match.status,
+                  confirmCount: match.confirmCount,
+                  denyCount: match.denyCount,
+                  adminVerified: match.adminVerified,
+                  expiresAt: match.expiresAt,
+                }]
+              : [match];
+          }
+
+          const reconciled = reconciledById.get(serverId);
+          if (
+            existing.status === "expired" ||
+            existing.status === "denied" ||
+            locallyDeniedServerIdsRef.current.has(serverId) ||
+            (reconciliationComplete && removedIdSet.has(serverId))
+          ) return [];
+          if (existing.isOwn && !reconciled) return [existing];
+
+          // Absence from a radius-scoped or temporarily incomplete response is
+          // not evidence of removal. Keep the report eligible for map/audio
+          // alerts until its known expiry or an explicit server tombstone.
+          retainedIds.add(serverId);
+          return [reconciled
+            ? {
+                ...existing,
+                status: reconciled.status,
+                expiresAt: reconciled.expiresAt,
+              }
+            : existing];
         });
-        const next = [...ownedUpdated, ...remoteNew].filter(
+
+        const remoteNew = filteredRemote.filter((report) => !retainedIds.has(report.id));
+        const next = [...retained, ...remoteNew].filter(
           (r) => r.status !== "expired" && r.status !== "denied"
         );
         const unchanged =
@@ -3281,6 +3366,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               before.lng === item.lng &&
               before.speedLimit === item.speedLimit &&
               before.roadName === item.roadName
+              && before.expiresAt === item.expiresAt
             );
           });
         return unchanged ? prev : next;
@@ -4179,7 +4265,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // the background task never fires for stale or non-hazard reports:
   //   • exclude type "clear" — "road is clear" reports are not hazards
   //   • exclude denied / expired / admin_review status
-  //   • exclude reports older than 24 h (matches pruneReportCache hard cap)
+  //   • follow authoritative server expiry; permanent cameras remain cached
   useEffect(() => {
     if (Platform.OS === "web") return;
     const now = Date.now();
@@ -4188,7 +4274,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (isAutoDetectedReport(r)) return false;
         if (r.type === "clear") return false;
         if (r.status === "denied" || r.status === "expired" || r.status === "admin_review") return false;
-        // Hard 24-hour age cap — matches pruneReportCache in AppContext
+        if (r.serverId) {
+          if (r.expiresAt === null) return true;
+          if (typeof r.expiresAt === "number") return r.expiresAt > now;
+          // Upgraded cached rows stay alertable until reconciliation.
+          return true;
+        }
+        // Truly unsynced/offline rows have no authoritative expiry metadata.
         if (now - r.timestamp > 86_400_000) return false;
         return true;
       })
@@ -4667,15 +4759,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     const serverId = report.serverId;
     const isCamera = report.type === "camera";
+    const removeImmediately = !isCamera || report.cameraType === "mobile";
     // Track that this device has voted on this report
     votedReportIdsRef.current.add(id);
     if (report.serverId) votedReportIdsRef.current.add(report.serverId);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const originalDenyCount = report.denyCount ?? 0;
-    // Optimistic update — camera stays visible until admin action; non-camera
-    // is removed immediately so the driver gets instant feedback.
+    // Mobile cameras and incidents disappear immediately after "Gone now".
+    // Fixed/unclassified cameras remain visible while admin reviews removal.
     let removedReport: CommunityReport | null = null;
-    if (isCamera) {
+    if (!removeImmediately) {
       setCommunityReports((prev) =>
         prev.map((r) =>
           r.id === id || r.serverId === id ? { ...r, denyCount: originalDenyCount + 1 } : r
@@ -4697,8 +4790,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         `/reports/${serverId}/deny`,
         { deviceId: deviceIdRef.current }
       );
-      if (isCamera) {
-        // Camera: sync the authoritative count/status returned by the server.
+      if (!removeImmediately) {
+        // Fixed/unclassified camera: sync admin-review status/count.
         setCommunityReports((prev) =>
           prev.map((r) =>
             r.id === id || r.serverId === id
@@ -4707,54 +4800,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           )
         );
       }
-      // Non-camera: already removed optimistically — nothing more to do.
+      // Incident/mobile camera: already removed optimistically.
       return { ok: true };
     } catch (err) {
-      if (isCamera) {
-        // Roll back optimistic denyCount increment for camera reports.
+      if (!removeImmediately) {
+        // Roll back fixed-camera denyCount increment.
         setCommunityReports((prev) =>
           prev.map((r) =>
             r.id === id || r.serverId === id ? { ...r, denyCount: originalDenyCount } : r
           )
         );
       }
-      if (warnIfBlockedDevice(err)) return { ok: false }; // alert already shown
-      if (err instanceof ApiError) {
-        if (err.status === 404) {
-          // Report is already gone on the server (expired or admin-removed).
-          // For camera reports, clean up locally too. For non-camera the
-          // optimistic removal already happened — skip the restore.
-          if (isCamera) {
-            setCommunityReports((prev) => {
-              const u = prev.filter((r) => r.id !== id && r.serverId !== serverId);
-              AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
-              return u;
-            });
-          }
-          return { ok: false, message: "This report was already removed from the map." };
-        }
-        // For non-camera, restore the report so the driver can retry.
-        if (!isCamera && removedReport) {
-          // Roll back the deny-block so the next poll can restore the report too.
-          locallyDeniedServerIdsRef.current.delete(serverId);
+      if (err instanceof ApiError && err.status === 404) {
+        // The server authoritatively says it is gone. Fixed cameras were not
+        // optimistically removed, so remove those here too.
+        if (!removeImmediately) {
           setCommunityReports((prev) => {
-            const u = [...prev, removedReport!];
+            const u = prev.filter((r) => r.id !== id && r.serverId !== serverId);
             AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
             return u;
           });
         }
-        // Surface the server's real reason (own-report protection, already voted…)
-        return { ok: false, message: err.message };
+        return { ok: false, message: "This report was already removed from the map." };
       }
-      // Network or unknown error — restore for non-camera so the driver can retry.
-      if (!isCamera && removedReport) {
-        // Roll back the deny-block so the next poll can restore the report too.
+      // Any other failure restores an incident/mobile camera so the driver can
+      // retry and the report remains eligible for audio alerts.
+      if (removeImmediately && removedReport) {
         locallyDeniedServerIdsRef.current.delete(serverId);
         setCommunityReports((prev) => {
           const u = [...prev, removedReport!];
           AsyncStorage.setItem(KEYS.REPORTS, JSON.stringify(u));
           return u;
         });
+      }
+      if (warnIfBlockedDevice(err)) return { ok: false }; // alert already shown
+      if (err instanceof ApiError) {
+        return { ok: false, message: err.message };
       }
       return { ok: false, message: "Check your connection and try again." };
     }

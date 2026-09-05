@@ -10,7 +10,7 @@ import {
   Image,
   BackHandler,
 } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -94,9 +94,21 @@ export default function ForceUpdateScreen() {
         </TouchableOpacity>
 
         {!isForced && (
-          <Text style={styles.skipHint}>
-            You can continue using the current version for now.
-          </Text>
+          <>
+            <TouchableOpacity
+              style={styles.notNowBtn}
+              onPress={() => {
+                if (router.canGoBack()) router.back();
+                else router.replace("/(tabs)");
+              }}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.notNowText}>Not now</Text>
+            </TouchableOpacity>
+            <Text style={styles.skipHint}>
+              You can continue using the current version for now.
+            </Text>
+          </>
         )}
       </ScrollView>
     </View>
@@ -191,6 +203,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
     fontFamily: "Inter_600SemiBold",
+  },
+  notNowBtn: {
+    marginTop: 14,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  notNowText: {
+    color: BRAND,
+    fontSize: 15,
+    fontWeight: "600",
   },
   skipHint: {
     fontSize: 13,

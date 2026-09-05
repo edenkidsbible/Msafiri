@@ -63,6 +63,7 @@
 - [Report flag auto-hide vs deny](report-flag-autohide-vs-deny.md) — mobile cameras use immediate Gone now; fixed cameras stay protected; stale 404 markers reconcile locally.
 - [Reports moderation pitfall](reports-moderation-pitfall.md) — police was in MODERATED_TYPES causing all checkpoints to vanish; only `camera` should be moderated.
 - [Report clustering architecture](report-clustering-architecture.md) — same-type 100m haversine, single emoji + count badge; no cross-type merging.
+- [Report feed reconciliation](report-feed-reconciliation.md) — polling omissions are not removals; reconcile cached IDs for authoritative expiry/tombstones so map and audio stay stable.
 - [Admin mobile system](admin-mobile-system.md) — PIN auth → 30-day JWT (SESSION_SECRET); adminVerified column; verify/deny/relocate endpoints; admin state lives in AppContext not a separate context.
 - [Backup & Recovery system](backup-recovery-system.md) — email OTP restore is transactional; migrates durable device data, merges snapshots, rejects account mixing, and reports partial recovery.
 - [Sentry + OpenTelemetry bundling](sentry-otel-bundling.md) — @sentry/node v10 must NOT be in esbuild externals; also causes drizzle-orm dual-instance TS errors fixed by adding @opentelemetry/api to both api-server and db packages.

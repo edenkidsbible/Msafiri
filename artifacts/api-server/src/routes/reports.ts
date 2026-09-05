@@ -285,6 +285,55 @@ router.get("/reports", async (req: Request, res: Response) => {
   }
 });
 
+// ── POST /reports/reconcile — authoritative state for cached report IDs ───────
+// Sent in bounded request-body batches so polling never exceeds proxy URL limits.
+// Active rows include refreshed expiry metadata; terminal/deleted rows are
+// returned as tombstones.
+router.post("/reports/reconcile", async (req: Request, res: Response) => {
+  try {
+    const ids = Array.isArray(req.body?.ids)
+      ? [...new Set(
+          req.body.ids.filter(
+            (id: unknown): id is string =>
+              typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id),
+          ),
+        )].slice(0, 500)
+      : [];
+    if (ids.length === 0) return res.json({ active: [], removedIds: [] });
+
+    await expireStale();
+    const rows = await db
+      .select({
+        id: communityReportsTable.id,
+        status: communityReportsTable.status,
+        expiresAt: communityReportsTable.expiresAt,
+        source: communityReportsTable.source,
+      })
+      .from(communityReportsTable)
+      .where(inArray(communityReportsTable.id, ids));
+
+    const active = rows
+      .filter(
+        (row) =>
+          row.source !== "auto" &&
+          ["active", "confirmed", "admin_review", "pending_review"].includes(row.status),
+      )
+      .map((row) => ({
+        id: row.id,
+        status: row.status,
+        expiresAt: row.expiresAt instanceof Date ? row.expiresAt.getTime() : null,
+      }));
+    const activeIds = new Set(active.map((row) => row.id));
+    return res.json({
+      active,
+      removedIds: ids.filter((id) => !activeIds.has(id)),
+    });
+  } catch (err) {
+    console.error("POST /reports/reconcile error:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── POST /reports — submit a new report ───────────────────────────────────────
 router.post("/reports", async (req: Request, res: Response) => {
   try {
