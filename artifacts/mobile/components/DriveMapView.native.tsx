@@ -10,7 +10,6 @@ export type DriveMapViewHandle = {
   focusCoords: (lat: number, lng: number) => void;
 };
 import DARK_MAP_STYLE from "@/constants/darkMapStyle";
-import ANDROID_APPLE_MAP_STYLE from "@/constants/androidAppleMapStyle";
 import { SCROLL_PROPS } from "@/lib/scrollProps";
 import {
   Alert,
@@ -1409,12 +1408,10 @@ const DriveMapView = forwardRef(function DriveMapView(
         // Maps), same as the browse map screen.
         provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
         // Night mode: apply the Google Maps dark style when the app is in dark
-        // mode. PROVIDER_GOOGLE on Android supports customMapStyle; iOS (Apple
-        // Maps) ignores the prop entirely so passing [] is safe on both.
+        // PROVIDER_GOOGLE on Android supports customMapStyle; iOS (Apple Maps)
+        // ignores the prop entirely so passing [] is safe on both.
         customMapStyle={
-          Platform.OS === "android"
-            ? (isDark ? DARK_MAP_STYLE : ANDROID_APPLE_MAP_STYLE)
-            : []
+          Platform.OS === "android" && isDark ? DARK_MAP_STYLE : []
         }
         initialRegion={
           currentLat != null && currentLng != null
