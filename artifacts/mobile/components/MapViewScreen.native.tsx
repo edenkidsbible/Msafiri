@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import DARK_MAP_STYLE from "@/constants/darkMapStyle";
 import { ActivityIndicator, Alert, Animated, Dimensions, FlatList, Keyboard, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { MAP_CHIPS, CATEGORIES, type QueryCategory, type POIResult, fetchNearbyPOIs, formatDist } from "@/utils/nearbyPlaces";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -1231,9 +1230,7 @@ export default function MapViewScreen() {
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
-        customMapStyle={
-          Platform.OS === "android" && c.isDark ? DARK_MAP_STYLE : []
-        }
+        userInterfaceStyle={c.isDark ? "dark" : "light"}
         initialRegion={
           currentLat && currentLng
             ? { latitude: currentLat, longitude: currentLng, latitudeDelta: 0.08, longitudeDelta: 0.08 }
