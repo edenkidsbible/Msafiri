@@ -105,7 +105,15 @@ function ChipSelect<T extends string>({
 
 export default function RestoreByPlateScreen() {
   const c = useColors();
-  const { deviceId, setDriverName, setThemeOverride, setVehicleType } = useApp();
+  const {
+    deviceId,
+    driverName,
+    vehicleType,
+    themeOverride,
+    setDriverName,
+    setThemeOverride,
+    setVehicleType,
+  } = useApp();
   const { refreshVehicles } = useVehicle();
 
   const [step, setStep] = useState<Step>(1);
@@ -240,7 +248,11 @@ export default function RestoreByPlateScreen() {
     }
     setLoading(true);
     try {
-      await verifyAndLinkEmail(normalizedEmail, cleaned, deviceId);
+      await verifyAndLinkEmail(normalizedEmail, cleaned, deviceId, {
+        driverName,
+        vehicleType,
+        themeOverride,
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setDone(true);
       Alert.alert(

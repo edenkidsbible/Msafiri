@@ -86,8 +86,17 @@ export async function verifyAndLinkEmail(
   email: string,
   otp: string,
   deviceId: string,
+  settings: SettingsSnapshot,
 ): Promise<void> {
-  await apiPost("/auth/verify-otp", { email, otp, intent: "link", deviceId });
+  const vehicles = await loadVehicles();
+  await apiPost("/auth/verify-otp", {
+    email,
+    otp,
+    intent: "link",
+    deviceId,
+    vehicles,
+    settings,
+  });
   await AsyncStorage.setItem(LINKED_EMAIL_KEY, email).catch(() => {});
 }
 
@@ -99,11 +108,14 @@ export async function restoreViaEmail(
   email: string,
   otp: string,
   newDeviceId: string,
-): Promise<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot }> {
-  const result = await apiPost<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot }>(
+): Promise<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot; partial?: boolean }> {
+  const result = await apiPost<{ vehicles: SavedVehicle[]; settings: SettingsSnapshot; partial?: boolean }>(
     "/auth/verify-otp",
     { email, otp, intent: "restore", newDeviceId },
   );
+  if (!result || !Array.isArray(result.vehicles)) {
+    throw new Error("Recovery returned an invalid backup payload. Please try again.");
+  }
   await AsyncStorage.setItem(LINKED_EMAIL_KEY, email).catch(() => {});
   return result;
 }

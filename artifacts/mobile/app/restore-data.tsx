@@ -5,7 +5,7 @@
  * Replaces the old phone/SMS OTP flow.
  */
 export { ErrorBoundary } from "@/components/ErrorBoundary";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -21,6 +21,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { reloadAppAsync } from "expo";
 
 import { useColors } from "@/hooks/useColors";
 import { useApp } from "@/context/AppContext";
@@ -32,7 +33,8 @@ import { KeyboardAwareScrollViewCompat } from "@/components/KeyboardAwareScrollV
 export default function RestoreDataScreen() {
   const c = useColors();
   const { deviceId, setDriverName, setThemeOverride, setVehicleType } = useApp();
-  const { refreshVehicles } = useVehicle();
+  const { vehicles: localVehicles, refreshVehicles } = useVehicle();
+  const replacementApprovedRef = useRef(false);
 
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState("");
@@ -87,13 +89,39 @@ export default function RestoreDataScreen() {
       Alert.alert("Error", "Device ID unavailable. Restart the app and try again.");
       return;
     }
+    if (localVehicles.length > 0 && !replacementApprovedRef.current) {
+      Alert.alert(
+        "Replace data on this device?",
+        "Restoring another account will replace the vehicles and account data currently stored on this device.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Replace & Restore",
+            style: "destructive",
+            onPress: () => {
+              replacementApprovedRef.current = true;
+              void handleVerify();
+            },
+          },
+        ],
+      );
+      return;
+    }
     setLoading(true);
     try {
-      const { vehicles, settings } = await restoreViaEmail(normalizedEmail, cleaned, deviceId);
+      const { vehicles, settings, partial } = await restoreViaEmail(normalizedEmail, cleaned, deviceId);
 
       if (!vehicles || vehicles.length === 0) {
-        Alert.alert("Nothing to restore", "No vehicle data was found for this account.");
-        setLoading(false);
+        await saveVehicles([]);
+        await refreshVehicles();
+        setDone(true);
+        Alert.alert(
+          "Account history recovered",
+          partial
+            ? "Your trips and other saved account history were recovered, but this account did not contain a backed-up vehicle profile. Add your vehicle again to complete setup."
+            : "Your account history was recovered, but no vehicle profile was found.",
+          [{ text: "Continue", onPress: () => reloadAppAsync() }],
+        );
         return;
       }
 
@@ -109,7 +137,7 @@ export default function RestoreDataScreen() {
       Alert.alert(
         "✅ Data Restored",
         `${vehicles.length} vehicle${vehicles.length !== 1 ? "s" : ""} and your settings have been restored. Welcome back!`,
-        [{ text: "Done", onPress: () => router.replace("/(tabs)") }],
+        [{ text: "Done", onPress: () => reloadAppAsync() }],
       );
     } catch (err: any) {
       const msg: string = err?.message ?? "";

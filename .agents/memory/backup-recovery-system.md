@@ -3,31 +3,20 @@ name: Backup & Recovery system
 description: How the device data backup/restore feature works — recovery codes, plate verification, data migration.
 ---
 
-## Architecture
+Email recovery must treat a verified recovery email as one account identity, not merely return a vehicle JSON blob.
 
-- **`device_backups` DB table** (PostgreSQL): `recovery_code` (5-char unique, uppercase alphanumeric A-Z + 2-9), `device_id` (unique), `vehicles_json`, `settings_json`, `last_backup_at`, `created_at`.
-- **API routes** (all under `/backup`):
-  - `POST /backup/init` — idempotent, creates record + code for a device; called by AppContext on startup
-  - `POST /backup/sync` — uploads vehicle list + settings snapshot (debounced 5 min client-side)
-  - `GET /backup/code` — returns code for a device
-  - `POST /backup/verify` — verifies code + plate, migrates server-side deviceId rows, returns vehicles/settings
-- **Mobile util**: `artifacts/mobile/utils/backupSync.ts` — `initBackup`, `syncBackup`, `verifyAndRestore`, `getLocalRecoveryCode`
-- **Recovery screen**: `artifacts/mobile/app/restore-data.tsx`
-- **Settings**: "Data & Recovery" section above "Privacy & Data" — shows code card + "Back Up Now" + "Restore" buttons
-- **Vehicle setup**: `vehicle-setup.tsx` Step 3 now includes a "Number plate" field (before odometer)
+**Why:** The old email flow could create empty linked backups and only changed the backup row's device ID. Recovery reported success while trips, places, contacts, and other durable records remained attached to the old identity.
 
-## Security model
+**How to apply:** Link the email and current non-empty snapshot atomically. Restore under an email-scoped transaction lock, consume OTPs once, atomically count failed attempts, lock all source/destination rows, reject populated unrelated destinations, and migrate durable account tables in the same transaction.
 
-Restore requires BOTH the 5-char code AND at least one matching plate number from the backed-up vehicle list. Plate matching normalises (uppercase, strip spaces/hyphens) before comparing.
+Valid legacy snapshots under one email are merged by stable vehicle ID, newest version winning conflicts. Malformed rows are never overwritten or deleted automatically; if the destination row is malformed, abort without consuming the OTP.
 
-## Auto-sync trigger
+**Why:** Selecting only the newest row can choose an empty snapshot, while deleting duplicate rows can destroy distinct vehicles or damaged evidence needed for manual repair.
 
-AppContext has a `useEffect` watching `vehicles` from `useVehicle()` that calls `syncBackup` (debounced 5 min) whenever the vehicle list changes.
+**How to apply:** Prefer complete snapshots, allow an empty parseable snapshot only for partial recovery, merge every valid snapshot before consolidation, and retain malformed rows. The client must distinguish partial recovery and reload after identity migration.
 
-## DeviceId migration on restore
+Dashcam credentials and creator benefits are not automatically migrated.
 
-`/backup/verify` updates server-side rows in: `push_tokens`, `saved_places`, `planned_trips`, and uses raw SQL (`db.execute(sql\`UPDATE...\``) for: `emergency_contacts`, `trips`, `live_trips`, `dashcam_clips`, `braking_events`, `crash_events`, `accidents`. Best-effort — failures don't abort the restore.
+**Why:** They have independent ownership/trust bindings; changing only their device ID can make clips inaccessible or transfer verified benefits incorrectly.
 
-## Why
-
-Recovery code alone is too easy to guess-and-dump; plate requirement makes social-engineering attacks impractical without physical access to the car.
+**How to apply:** Recover them only through a dedicated re-authorization or manually verified support process.

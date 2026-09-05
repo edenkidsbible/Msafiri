@@ -29,7 +29,7 @@ import { sendOtp, verifyAndLinkEmail } from "@/utils/backupSync";
 
 export default function LinkEmailScreen() {
   const c = useColors();
-  const { deviceId } = useApp();
+  const { deviceId, driverName, vehicleType, themeOverride } = useApp();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState("");
@@ -81,7 +81,11 @@ export default function LinkEmailScreen() {
     }
     setLoading(true);
     try {
-      await verifyAndLinkEmail(normalizedEmail, cleaned, deviceId);
+      await verifyAndLinkEmail(normalizedEmail, cleaned, deviceId, {
+        driverName,
+        vehicleType,
+        themeOverride,
+      });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setSuccess(true);
       setTimeout(() => router.back(), 1800);
