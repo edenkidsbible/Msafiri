@@ -20,6 +20,7 @@ import { getToken } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { format, formatDistanceToNow } from "date-fns";
 import { PageGuide } from "@/components/page-guide";
+import { AdminLayout } from "@/components/layout/admin-layout";
 
 function authFetch(url: string, opts: RequestInit = {}) {
   return fetch(url, {
@@ -288,7 +289,8 @@ export default function InboxPage() {
   }
 
   return (
-    <div className="flex flex-col gap-0 -m-4 md:-m-8 h-[calc(100vh-3.5rem)]">
+    <AdminLayout>
+    <div className="flex flex-col gap-0 min-h-[calc(100vh-8rem)]">
 
       {/* ── Top header bar ── */}
       <div className="flex items-center gap-3 px-4 md:px-6 py-3 border-b bg-background shrink-0">
@@ -384,7 +386,7 @@ export default function InboxPage() {
       </div>
 
       {/* ── Two-panel layout ── */}
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-1 min-h-[32rem] border rounded-xl overflow-hidden bg-card shadow-sm">
 
         {/* Email list */}
         <div
@@ -736,5 +738,6 @@ export default function InboxPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </AdminLayout>
   );
 }
