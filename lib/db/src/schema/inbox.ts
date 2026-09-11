@@ -17,6 +17,7 @@ export const inboxEmailsTable = pgTable("inbox_emails", {
   references: text("references"),   // References header for threading
   spamScore: text("spam_score"),
   rawHeaders: text("raw_headers"),  // JSON-stringified headers for debugging
+  direction: text("direction").notNull().default("inbound"), // "inbound" | "outbound"
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

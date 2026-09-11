@@ -1197,6 +1197,12 @@ export async function migrateSchema(): Promise<void> {
         ADD COLUMN IF NOT EXISTS road_channels_enabled BOOLEAN NOT NULL DEFAULT FALSE
     `);
 
+    // inbox_emails: add direction column to distinguish inbound vs outbound
+    await db.execute(sql`
+      ALTER TABLE inbox_emails
+        ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'inbound'
+    `);
+
     logger.info("migrateSchema: schema is up to date");
   } catch (err) {
     // Log but do not crash — a missing column causes a runtime error on first
