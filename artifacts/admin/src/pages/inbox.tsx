@@ -97,6 +97,7 @@ export default function InboxPage() {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [unreadCount, setUnreadCount] = useState(0);
+  const [syncing, setSyncing] = useState(false);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Reader state
@@ -288,6 +289,30 @@ export default function InboxPage() {
     fetchStats();
   }
 
+  async function syncResend() {
+    setSyncing(true);
+    try {
+      const res = await authFetch("/api/admin/inbox/sync-resend", {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Failed to sync Resend");
+      await fetchEmails(1, search, filter, view, mailboxFilter);
+      await fetchStats();
+      toast({
+        title: "Resend inbox synced",
+        description: `${data.processed ?? 0} received email${data.processed === 1 ? "" : "s"} processed${data.failed ? `, ${data.failed} failed` : ""}.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: err?.message ?? "Failed to sync Resend",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <AdminLayout>
     <div className="flex flex-col gap-0 min-h-[calc(100vh-8rem)]">
@@ -323,6 +348,16 @@ export default function InboxPage() {
           )}
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={refreshAll}>
             <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 h-8"
+            onClick={syncResend}
+            disabled={syncing}
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", syncing && "animate-spin")} />
+            {syncing ? "Syncing…" : "Sync Resend"}
           </Button>
           <Button size="sm" className="gap-1.5 h-8" onClick={() => setComposeOpen(true)}>
             <PenSquare className="h-3.5 w-3.5" />
@@ -559,15 +594,25 @@ export default function InboxPage() {
                   </div>
                   <div className="flex gap-1 shrink-0">
                     {selected.direction === "inbound" && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        title={selected.isRead ? "Mark as unread" : "Mark as read"}
-                        onClick={() => toggleRead(selected)}
-                      >
-                        {selected.isRead ? <Mail className="h-4 w-4" /> : <MailOpen className="h-4 w-4" />}
-                      </Button>
+                      <>
+                        <Button
+                          size="sm"
+                          className="h-8 gap-1.5"
+                          onClick={() => setReplying(true)}
+                        >
+                          <Reply className="h-3.5 w-3.5" />
+                          Reply
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          title={selected.isRead ? "Mark as unread" : "Mark as read"}
+                          onClick={() => toggleRead(selected)}
+                        >
+                          {selected.isRead ? <Mail className="h-4 w-4" /> : <MailOpen className="h-4 w-4" />}
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="ghost"

@@ -117,3 +117,4 @@
 - [Android map styling](android-map-style.md) — Android stays on Google Maps with an Apple-inspired light style; iOS remains native Apple Maps.
 - [Scheduled notification policy](scheduled-notification-policy.md) — one usage tip daily at 13:00 EAT; no auto road checks; keep notification titles within 20 visible characters.
 - [Per-platform app version builds](app-version-builds.md) — iOS/Android counters are independent; force checks compare native build after semantic version.
+- [Resend inbound email contract](resend-inbound-email-contract.md) — webhook metadata needs Receiving API enrichment; avoid duplicating the mount path inside its Express router.

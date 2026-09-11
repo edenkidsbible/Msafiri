@@ -3,6 +3,10 @@ import { db } from "@workspace/db";
 import { inboxEmailsTable } from "@workspace/db/schema";
 import { desc, eq, ilike, or, sql, and } from "drizzle-orm";
 import type { Request, Response } from "express";
+import {
+  listReceivedEmails,
+  persistReceivedEmail,
+} from "../../lib/resendInbound.js";
 
 const router = Router();
 
@@ -74,6 +78,42 @@ router.get("/inbox/stats", async (_req: Request, res: Response) => {
   } catch (err) {
     console.error("[admin/inbox] stats error:", err);
     return res.status(500).json({ error: "Failed to fetch inbox stats" });
+  }
+});
+
+// POST /inbox/sync-resend — import messages that already exist in Resend.
+router.post("/inbox/sync-resend", async (_req: Request, res: Response) => {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    return res.status(500).json({ error: "RESEND_API_KEY not configured" });
+  }
+
+  try {
+    let after: string | undefined;
+    let processed = 0;
+    let failed = 0;
+
+    // Resend returns up to 100 per page. Cap one manual sync at 1,000 emails.
+    for (let page = 0; page < 10; page++) {
+      const result = await listReceivedEmails(apiKey, after);
+      for (let i = 0; i < result.data.length; i += 5) {
+        const batch = result.data.slice(i, i + 5);
+        const outcomes = await Promise.allSettled(
+          batch.map((email) => persistReceivedEmail(apiKey, email)),
+        );
+        processed += outcomes.filter((item) => item.status === "fulfilled").length;
+        failed += outcomes.filter((item) => item.status === "rejected").length;
+      }
+
+      if (!result.has_more || result.data.length === 0) break;
+      after = result.data[result.data.length - 1]?.id;
+      if (!after) break;
+    }
+
+    return res.json({ ok: true, processed, failed });
+  } catch (err) {
+    console.error("[admin/inbox] Resend sync error:", err);
+    return res.status(502).json({ error: "Failed to sync emails from Resend" });
   }
 });
 

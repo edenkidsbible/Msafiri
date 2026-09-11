@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { createHmac, timingSafeEqual } from "crypto";
-import { db } from "@workspace/db";
-import { inboxEmailsTable } from "@workspace/db/schema";
+import { persistReceivedEmail } from "../lib/resendInbound.js";
 
 const router = Router();
 
@@ -64,17 +63,18 @@ function verifySignature(
  *   type: "email.received",
  *   created_at: "...",
  *   data: {
- *     to: "hello@msafirikenya.com" | [{email, name}],
- *     from: "Name <email>" | {email, name},
+ *     email_id: "...",
+ *     to: ["hello@msafirikenya.com"],
+ *     from: "sender@example.com",
  *     subject: "...",
- *     html: "...",
- *     text: "...",
- *     headers: { "Message-Id": "...", "In-Reply-To": "...", ... },
- *     spamScore: 0,
+ *     message_id: "...",
  *   }
  * }
+ *
+ * The webhook contains metadata only. The full body and headers are retrieved
+ * from Resend's Receiving API before the message is stored.
  */
-router.post("/api/webhooks/email-inbound", async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
 
@@ -103,66 +103,19 @@ router.post("/api/webhooks/email-inbound", async (req, res) => {
       return res.status(400).json({ error: "Invalid JSON body" });
     }
 
-    // Accept both "email.received" type and raw inbound payloads
+    if (body?.type && body.type !== "email.received") {
+      return res.status(200).json({ ok: true, ignored: true });
+    }
+
     const data = body?.data ?? body;
     if (!data) return res.status(400).json({ error: "Missing payload" });
 
-    // Parse `from` — can be "Name <email@domain.com>", "email@domain.com", or {email, name}
-    let fromEmail = "";
-    let fromName: string | undefined;
-    if (typeof data.from === "string") {
-      const match = data.from.match(/^(.+?)\s*<(.+?)>$/);
-      if (match) {
-        fromName  = match[1].trim();
-        fromEmail = match[2].trim();
-      } else {
-        fromEmail = data.from.trim();
-      }
-    } else if (data.from && typeof data.from === "object") {
-      fromEmail = data.from.email ?? "";
-      fromName  = data.from.name ?? undefined;
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({ error: "RESEND_API_KEY not configured" });
     }
 
-    if (!fromEmail) return res.status(400).json({ error: "Missing from address" });
-
-    // Parse `to` — can be string, array of strings, or array of {email, name}
-    let toEmail = "";
-    if (typeof data.to === "string") {
-      toEmail = data.to.trim();
-    } else if (Array.isArray(data.to)) {
-      const first = data.to[0];
-      toEmail = typeof first === "string" ? first : (first?.email ?? "");
-    }
-
-    // Extract headers
-    const headers    = data.headers ?? {};
-    const messageId  = headers["Message-Id"]  ?? headers["message-id"]  ?? headers["Message-ID"] ?? null;
-    const inReplyTo  = headers["In-Reply-To"] ?? headers["in-reply-to"] ?? null;
-    const references = headers["References"]  ?? headers["references"]  ?? null;
-
-    const subject   = data.subject ?? "(no subject)";
-    const bodyHtml  = data.html    ?? null;
-    const bodyText  = data.text    ?? null;
-    const spamScore = data.spamScore != null ? String(data.spamScore) : null;
-
-    // Insert — on conflict (same Message-Id) do nothing to avoid duplicates
-    await db
-      .insert(inboxEmailsTable)
-      .values({
-        messageId:  messageId ?? undefined,
-        fromEmail,
-        fromName:   fromName ?? null,
-        toEmail:    toEmail || "hello@msafirikenya.com",
-        subject,
-        bodyHtml,
-        bodyText,
-        inReplyTo:  inReplyTo  ?? null,
-        references: references ?? null,
-        spamScore,
-        rawHeaders: JSON.stringify(headers),
-        receivedAt: body.created_at ? new Date(body.created_at) : new Date(),
-      })
-      .onConflictDoNothing({ target: inboxEmailsTable.messageId });
+    await persistReceivedEmail(apiKey, data);
 
     return res.status(200).json({ ok: true });
   } catch (err) {
